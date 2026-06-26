@@ -2,6 +2,7 @@ Binaries
 DerivedDataCache
 Intermediate
 Saved
+.claudeignore
 .vscode
 .vs
 *.VC.db
