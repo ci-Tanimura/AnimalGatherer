@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -8,101 +8,166 @@
 #include "MapManager.generated.h"
 
 
-// タイルが取りうる全状態を定義する
+/**
+ * @brief タイルの状態を定義する列挙型。
+ *        方向指示・動物出現・ゴールの8状態を持つ。
+ */
 UENUM(BlueprintType)
 enum class ETileType : uint8
 {
-    Empty = 0      UMETA(DisplayName = "方向なし (デフォルト)"),
-    DirUp = 1      UMETA(DisplayName = "上方向"),
-    DirDown = 2    UMETA(DisplayName = "下方向"),
-    DirLeft = 3    UMETA(DisplayName = "左方向"),
-    DirRight = 4   UMETA(DisplayName = "右方向"),
-    Spawn = 5      UMETA(DisplayName = "動物出現ポイント"),
-    GoalP1 = 6     UMETA(DisplayName = "1P ゴール"),
-    GoalP2 = 7     UMETA(DisplayName = "2P ゴール")
+	Empty = 0      UMETA(DisplayName = "方向なし (デフォルト)"),
+	DirUp = 1      UMETA(DisplayName = "上方向"),
+	DirDown = 2    UMETA(DisplayName = "下方向"),
+	DirLeft = 3    UMETA(DisplayName = "左方向"),
+	DirRight = 4   UMETA(DisplayName = "右方向"),
+	Spawn = 5      UMETA(DisplayName = "動物出現ポイント"),
+	GoalP1 = 6     UMETA(DisplayName = "1P ゴール"),
+	GoalP2 = 7     UMETA(DisplayName = "2P ゴール")
 };
 
-// 最小限のタイルデータ構造
+/**
+ * @brief グリッド上の1マスを表すデータ構造体。
+ */
 USTRUCT(BlueprintType)
 struct FMapTileData
 {
 	GENERATED_BODY()
 
+	/** @brief タイルのワールド座標。 */
 	UPROPERTY(BlueprintReadOnly)
 	FVector WorldLocation = FVector::ZeroVector;
 
+	/** @brief タイルの種類。 */
 	UPROPERTY(BlueprintReadWrite)
-    ETileType TileType = ETileType::Empty;
+	ETileType TileType = ETileType::Empty;
 
+	/** @brief 所有プレイヤーID（0 は未所有）。 */
 	UPROPERTY(BlueprintReadWrite)
 	int32 OwnerPlayerID = 0;
 };
 
+/**
+ * @brief マップ全体のタイルデータ管理と可視化を担うアクター。
+ *        HISM による高速レンダリングとエディタ編集機能を提供する。
+ */
 UCLASS()
 class ANIMALGATHERER_API AMapManager : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
-	// Sets default values for this actor's properties
+
+public:
 	AMapManager();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
-    // --- マップ設定パラメータ（Blueprint から調整可能） ---
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
-    int32 MapWidth = 10;
+public:
+	//==============================================================================
+	// マップ設定パラメータ
+	//==============================================================================
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
-    int32 MapHeight = 10;
+	/** @brief マップの横幅（タイル数）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
+	int32 MapWidth = 10;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
-    float TileSize = 100.f; // Unreal の基本立方体はデフォルトで 100x100
+	/** @brief マップの縦幅（タイル数）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
+	int32 MapHeight = 10;
 
-    // --- 高速レンダリング用コンポーネント ---
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map Components")
-    UHierarchicalInstancedStaticMeshComponent* HISMFloor;
+	/** @brief 1タイルあたりのワールドサイズ。標準キューブ 100x100 を想定。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map Config")
+	float TileSize = 100.f;
 
-    // --- コアデータ格納 ---
-    UPROPERTY(BlueprintReadOnly, Category = "Map Data")
-    TArray<FMapTileData> GridData;
+	//==============================================================================
+	// HISM レンダリングコンポーネント
+	//==============================================================================
 
+	/**
+	 * @brief 床面用 HISM コンポーネント。
+	 * @deprecated HISM_BaseFloor に移行済み。
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map Components")
+	UHierarchicalInstancedStaticMeshComponent* HISMFloor;
 
-    // --- ビジュアルコンポーネント ---
-    // ベースフロア（常に表示される基本の床）
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-    UHierarchicalInstancedStaticMeshComponent* HISM_BaseFloor;
+	/** @brief 全タイルのベースとなる床面メッシュ。 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UHierarchicalInstancedStaticMeshComponent* HISM_BaseFloor;
 
-    // タイル状態ごとの追加メッシュを保持（矢印、ゴール等）
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-    TMap<ETileType, UHierarchicalInstancedStaticMeshComponent*> StateVisuals;
+	/**
+	 * @brief タイル状態ごとの HISM レイヤーマップ。
+	 *        状態別メッシュの一括描画を可能にする。
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TMap<ETileType, UHierarchicalInstancedStaticMeshComponent*> StateVisuals;
 
-    // --- コアメソッド ---
-    UFUNCTION(BlueprintCallable, Category = "Map")
-    void UpdateMapVisuals(); // 全タイルのビジュアルを最新の状態に更新する
+	//==============================================================================
+	// コアデータ
+	//==============================================================================
 
-    // --- エンジン組み込みコンストラクタ（エディタでプロパティを変更するたびに自動実行） ---
-    virtual void OnConstruction(const FTransform& Transform) override;
+	/**
+	 * @brief 全タイルを格納する1次元配列。
+	 *        インデックス = Y * MapWidth + X で2次元アクセスする。
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Map Data")
+	TArray<FMapTileData> GridData;
 
-    // --- レベルデザインツール (Level Design Tools) ---
-    // 以下の3つの変数でエディタ上で編集したいタイルを指定する
-    UPROPERTY(EditAnywhere, Category = "Level Design Tools")
-    int32 Edit_X = 0;
+	//==============================================================================
+	// パブリックメソッド
+	//==============================================================================
 
-    UPROPERTY(EditAnywhere, Category = "Level Design Tools")
-    int32 Edit_Y = 0;
+	/**
+	 * @brief 全タイルのビジュアルを最新状態に更新する。
+	 *        StateVisuals をクリア後、GridData を走査してメッシュインスタンスを再配置する。
+	 *        矢印タイルは方向に合わせた回転を適用する。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Map")
+	void UpdateMapVisuals();
 
-    UPROPERTY(EditAnywhere, Category = "Level Design Tools")
-    ETileType Edit_TileType = ETileType::Empty;
+	//==============================================================================
+	// エディタ構築処理
+	//==============================================================================
 
-    // CallInEditor により Blueprint の詳細パネルにボタンとして表示される
-    UFUNCTION(CallInEditor, Category = "Level Design Tools")
-    void ApplyTileEdit();
+	/**
+	 * @brief エディタ上での配置・プロパティ変更時に自動実行される。
+	 * @param Transform アクターのワールドトランスフォーム。
+	 */
+	virtual void OnConstruction(const FTransform& Transform) override;
 
-    // 安全策：明示的にリセット操作を行ったときのみ全マップデータをクリアする
-    UFUNCTION(CallInEditor, Category = "Level Design Tools")
-    void ResetAndGenerateBlankMap();
+#if WITH_EDITOR
+	/**
+	 * @brief エディタのプロパティ変更時に自動呼び出し。
+	 *        マップサイズ変更時は全再生成、Level Design Tools 変更時は即時反映する。
+	 * @param PropertyChangedEvent 変更されたプロパティ情報。
+	 */
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
+	//==============================================================================
+	// レベルデザインツール
+	//==============================================================================
+
+	/** @brief 編集対象のX座標（列インデックス）。 */
+	UPROPERTY(EditAnywhere, Category = "Level Design Tools")
+	int32 Edit_X = 0;
+
+	/** @brief 編集対象のY座標（行インデックス）。 */
+	UPROPERTY(EditAnywhere, Category = "Level Design Tools")
+	int32 Edit_Y = 0;
+
+	/** @brief タイルに設定する新しい種類。 */
+	UPROPERTY(EditAnywhere, Category = "Level Design Tools")
+	ETileType Edit_TileType = ETileType::Empty;
+
+	/**
+	 * @brief 指定座標のタイルを Edit_TileType に変更する。
+	 *        座標が範囲外の場合は警告ログを出力する。
+	 */
+	UFUNCTION(CallInEditor, Category = "Level Design Tools")
+	void ApplyTileEdit();
+
+	/**
+	 * @brief 全マップをクリアし、現在のサイズで空グリッドを再生成する。
+	 */
+	UFUNCTION(CallInEditor, Category = "Level Design Tools")
+	void ResetAndGenerateBlankMap();
 };
