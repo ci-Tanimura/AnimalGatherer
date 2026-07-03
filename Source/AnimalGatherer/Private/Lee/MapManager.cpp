@@ -1,136 +1,208 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Lee/MapManager.h"
 
-// Sets default values
+/**
+ * @brief デフォルトコンストラクタ。
+ *        Tick を無効化し、ベースフロア用 HISM と7状態分の HISM レイヤーを生成する。
+ *        各レイヤーは RootComponent にアタッチされ、StateVisuals に格納される。
+ */
 AMapManager::AMapManager()
 {
-	// このアクターでは Tick は不要なので無効にする（パフォーマンス向上）
 	PrimaryActorTick.bCanEverTick = false;
 
-	// --- ベースフロア（常時表示される床メッシュ） ---
+	// ベースフロア（常時表示される床メッシュ）
 	HISM_BaseFloor = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("HISM_BaseFloor"));
 	RootComponent = HISM_BaseFloor;
 
-	// --- タイルの状態ごとに専用の HISM レイヤーを作成 ---
-	// 各レイヤーはベースフロアにアタッチされ、Empty(0) を除く全状態をカバーする
+	// Empty(0) を除く7状態分の HISM レイヤーを作成
 	for (uint8 i = 1; i <= 7; ++i)
 	{
-        ETileType Type = static_cast<ETileType>(i);
-        FString CompName = FString::Printf(TEXT("HISM_State_%d"), i);
+		ETileType Type = static_cast<ETileType>(i);
+		FString CompName = FString::Printf(TEXT("HISM_State_%d"), i);
 
-        UHierarchicalInstancedStaticMeshComponent* NewHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(*CompName);
-        NewHISM->SetupAttachment(RootComponent);
+		UHierarchicalInstancedStaticMeshComponent* NewHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(*CompName);
+		NewHISM->SetupAttachment(RootComponent);
 
-        // TMap に保存し、後で状態ごとにインスタンスを追加できるようにする
-        StateVisuals.Add(Type, NewHISM);
-    }
+		StateVisuals.Add(Type, NewHISM);
+	}
 }
 
-// Called when the game starts or when spawned
+/**
+ * @brief ゲーム開始時またはスポーン時に呼ばれる。
+ *        現状は基底クラスへの委譲のみ。必要に応じて拡張可能。
+ */
 void AMapManager::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 
+/**
+ * @brief 全タイルのビジュアルを最新状態に更新する。
+ *        全 StateVisuals をクリア後、GridData を走査し、Empty 以外のタイルに対応する
+ *        HISM レイヤーへインスタンスを追加する。
+ *        矢印タイルは方向に応じて Yaw 回転を適用する。
+ *        Zオフセットはタイル種別ごとに微小差をつけ、z-fighting を防止する。
+ */
 void AMapManager::UpdateMapVisuals()
 {
-    // 1. すべての状態レイヤーをクリアする（BaseFloor は常に表示するのでそのまま）
-    for (auto& Pair : StateVisuals)
-    {
-        Pair.Value->ClearInstances();
-    }
+	// 全 StateVisuals レイヤーをクリア
+	for (auto& Pair : StateVisuals)
+	{
+		Pair.Value->ClearInstances();
+		Pair.Value->SetRelativeLocation(FVector::ZeroVector);
+	}
 
-    // 2. 全タイルのデータを走査し、現在の状態に応じたメッシュを配置する
-    for (const FMapTileData& Tile : GridData)
-    {
-        // Empty 以外のタイルのみ処理する
-        if (Tile.TileType != ETileType::Empty)
-        {
-            if (UHierarchicalInstancedStaticMeshComponent** TargetHISM = StateVisuals.Find(Tile.TileType))
-            {
-                FTransform InstanceTransform;
-                // Z 方向に 1cm 浮かせてベース床との Z ファイティングを防止
-                FVector LocalLocation = Tile.WorldLocation - GetActorLocation();
-                InstanceTransform.SetLocation(LocalLocation + FVector(0, 0, 1.0f));
-                (*TargetHISM)->AddInstance(InstanceTransform);
-            }
-        }
-    }
+	// GridData を走査してメッシュを配置
+	for (int32 i = 0; i < GridData.Num(); ++i)
+	{
+		const FMapTileData& Tile = GridData[i];
+
+		if (Tile.TileType != ETileType::Empty)
+		{
+			if (UHierarchicalInstancedStaticMeshComponent** TargetHISM = StateVisuals.Find(Tile.TileType))
+			{
+				FTransform InstanceTransform;
+
+				// グリッド座標からローカル位置を計算
+				// WorldLocation は使わず、自身の座標からの相対位置で設定する
+				const int32 X = i % MapWidth;
+				const int32 Y = i / MapWidth;
+				const float ZOffset = static_cast<uint8>(Tile.TileType) * 0.1f;
+				InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, ZOffset));
+
+				// 矢印方向に応じた回転を設定（初期メッシュは上向きを想定）
+				FRotator TileRot = FRotator::ZeroRotator;
+
+				if (Tile.TileType == ETileType::DirDown)
+				{
+					TileRot.Yaw = 180.0f;
+				}
+				else if (Tile.TileType == ETileType::DirRight)
+				{
+					TileRot.Yaw = 90.0f;
+				}
+				else if (Tile.TileType == ETileType::DirLeft)
+				{
+					TileRot.Yaw = -90.0f;
+				}
+
+				InstanceTransform.SetRotation(TileRot.Quaternion());
+				(*TargetHISM)->AddInstance(InstanceTransform);
+			}
+		}
+	}
 }
 
+/**
+ * @brief エディタ上での配置・プロパティ変更時に自動実行される構築処理。
+ *        GridData のサイズが MapWidth×MapHeight と不一致なら全再生成、
+ *        一致すればビジュアルのみを更新する。
+ */
 void AMapManager::OnConstruction(const FTransform& Transform)
 {
-    Super::OnConstruction(Transform);
+	Super::OnConstruction(Transform);
 
-    // GridData が未初期化、またはマップサイズが変更された場合は全データを再生成する
-    if (GridData.Num() != MapWidth * MapHeight)
-    {
-        ResetAndGenerateBlankMap();
-    }
-    else
-    {
-        // データが既に存在する場合はビジュアルのみ更新する
-        UpdateMapVisuals();
-    }
+	if (GridData.Num() != MapWidth * MapHeight)
+	{
+		ResetAndGenerateBlankMap();
+	}
+	else
+	{
+		UpdateMapVisuals();
+	}
 }
 
+/**
+ * @brief エディタの Level Design Tools で指定されたタイルの種類を変更する。
+ *        座標が範囲内なら GridData を更新し即座にビジュアルへ反映する。
+ *        範囲外の場合は警告ログを出力する。
+ *        Modify() を呼び、エディタの Undo/Redo に対応する。
+ */
 void AMapManager::ApplyTileEdit()
 {
-    // 指定された座標がマップ範囲内かを検証する
-    if (Edit_X >= 0 && Edit_X < MapWidth && Edit_Y >= 0 && Edit_Y < MapHeight)
-    {
-        // 1次元配列で2次元グリッドを表現するためのインデックス計算
-        int32 Index = Edit_Y * MapWidth + Edit_X;
+	if (Edit_X >= 0 && Edit_X < MapWidth && Edit_Y >= 0 && Edit_Y < MapHeight)
+	{
+		Modify();
+		int32 Index = Edit_Y * MapWidth + Edit_X;
 
-        // 選択されたタイルの種類を変更する
-        GridData[Index].TileType = Edit_TileType;
-
-        // 変更を即座に画面に反映する
-        UpdateMapVisuals();
-    }
+		if (GridData.IsValidIndex(Index))
+		{
+			GridData[Index].TileType = Edit_TileType;
+			UpdateMapVisuals();
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ApplyTileEdit: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
+			Edit_X, Edit_Y, MapWidth, MapHeight);
+	}
 }
 
+#if WITH_EDITOR
+/**
+ * @brief エディタのプロパティ変更を検知し、適切な後処理を実行する。
+ *        MapWidth/MapHeight/TileSize 変更時は全マップを再生成する。
+ *        Edit_X/Edit_Y/Edit_TileType 変更時は ApplyTileEdit() を自動呼び出しする。
+ * @param PropertyChangedEvent 変更されたプロパティ情報。
+ */
+void AMapManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropName = PropertyChangedEvent.GetPropertyName();
+	if (PropName == GET_MEMBER_NAME_CHECKED(AMapManager, MapWidth) ||
+		PropName == GET_MEMBER_NAME_CHECKED(AMapManager, MapHeight) ||
+		PropName == GET_MEMBER_NAME_CHECKED(AMapManager, TileSize))
+	{
+		ResetAndGenerateBlankMap();
+		return;
+	}
+
+	if (PropName == GET_MEMBER_NAME_CHECKED(AMapManager, Edit_X) ||
+		PropName == GET_MEMBER_NAME_CHECKED(AMapManager, Edit_Y) ||
+		PropName == GET_MEMBER_NAME_CHECKED(AMapManager, Edit_TileType))
+	{
+		ApplyTileEdit();
+	}
+}
+#endif
+
+/**
+ * @brief 全マップをクリアし、現在の MapWidth×MapHeight で空グリッドを再生成する。
+ *        GridData を初期化し、ベースフロアの HISM インスタンスも再配置する。
+ */
 void AMapManager::ResetAndGenerateBlankMap()
 {
-    // 既存のデータをクリアし、新しいサイズでメモリを事前確保する
-    GridData.Empty();
-    GridData.Reserve(MapWidth * MapHeight);
+	GridData.Empty();
+	GridData.Reserve(MapWidth * MapHeight);
 
-    // ベースフロアの既存インスタンスを削除して重複を防ぐ
-    if (HISM_BaseFloor)
-    {
-        HISM_BaseFloor->ClearInstances();
-    }
+	if (HISM_BaseFloor)
+	{
+		HISM_BaseFloor->ClearInstances();
+	}
 
-    FVector StartLocation = GetActorLocation();
+	FVector StartLocation = GetActorLocation();
 
-    // 全タイルを走査して初期化する
-    for (int32 Y = 0; Y < MapHeight; Y++)
-    {
-        for (int32 X = 0; X < MapWidth; X++)
-        {
-            FMapTileData NewTile;
-            NewTile.WorldLocation = StartLocation + FVector(X * TileSize, Y * TileSize, 0.0f);
-            NewTile.TileType = ETileType::Empty;
-            GridData.Add(NewTile);
+	for (int32 Y = 0; Y < MapHeight; Y++)
+	{
+		for (int32 X = 0; X < MapWidth; X++)
+		{
+			FMapTileData NewTile;
+			NewTile.WorldLocation = StartLocation + FVector(X * TileSize, Y * TileSize, 0.0f);
+			NewTile.TileType = ETileType::Empty;
+			GridData.Add(NewTile);
 
-            // ベースフロア用のインスタンスを追加する
-            if (HISM_BaseFloor)
-            {
-                FTransform InstanceTransform;
-                InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.0f));
-                HISM_BaseFloor->AddInstance(InstanceTransform);
-            }
-        }
-    }
+			if (HISM_BaseFloor)
+			{
+				FTransform InstanceTransform;
+				InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.0f));
+				HISM_BaseFloor->AddInstance(InstanceTransform);
+			}
+		}
+	}
 
-    // 全タイルのビジュアルを最新の状態に更新する
-    UpdateMapVisuals();
+	UpdateMapVisuals();
 }
-
-
-
