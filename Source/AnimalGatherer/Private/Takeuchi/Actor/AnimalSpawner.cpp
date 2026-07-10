@@ -1,6 +1,7 @@
 #include "Takeuchi/Actor/AnimalSpawner.h"
 
 #include "Engine/World.h"
+#include "Takeuchi/Pawn/AnimalBase.h"
 #include "TimerManager.h"
 
 AAnimalSpawner::AAnimalSpawner()
@@ -71,6 +72,11 @@ APawn* AAnimalSpawner::SpawnAnimal()
 
 	if (SpawnedAnimal)
 	{
+		if (AAnimalBase* AnimalBase = Cast<AAnimalBase>(SpawnedAnimal))
+		{
+			AnimalBase->SetMapActor(MapActor);
+		}
+
 		//Å‘å”‚ğŠÇ—‚·‚é‚½‚ßA¶¬‚µ‚½“®•¨‚ğ‹L˜^‚·‚é
 		SpawnedAnimals.Add(SpawnedAnimal);
 	}
