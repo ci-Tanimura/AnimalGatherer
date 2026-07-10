@@ -39,6 +39,18 @@ void AAnimalBase::Tick(float DeltaTime)
 void AAnimalBase::SetMoveDirection(FVector NewMoveDirection)
 {
 	CurrentMoveDirection = NewMoveDirection.GetSafeNormal();
+
+	if (bRotateToMoveDirection && !CurrentMoveDirection.IsNearlyZero())
+	{
+		const FRotator DirectionRotation = CurrentMoveDirection.Rotation();
+		SetActorRotation(FRotator(0.0f, DirectionRotation.Yaw + FacingYawOffset, 0.0f));
+	}
+}
+
+void AAnimalBase::SetMapActor(AActor* NewMapActor)
+{
+	MapActor = NewMapActor;
+	bHasLastGridCoords = false;
 }
 
 //足元のマスを読み取り、SetMoveDirectionを呼ぶ

@@ -36,17 +36,29 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Animal Movement")
 	FVector CurrentMoveDirection = FVector::ZeroVector;
 
+	//移動方向に合わせて体の向きを変えるか
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Movement")
+	bool bRotateToMoveDirection = true;
+
+	//モデルの正面がずれている場合に補正するYaw角度
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Movement")
+	float FacingYawOffset = -90.0f;
+
 	//1タイルのワールドサイズ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map", meta = (ClampMin = "1.0", UIMin = "1.0"))
 	float TileSize = 100.0f;
 
 	//タイル情報を問い合わせる対象
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Animal Map")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map", meta = (ExposeOnSpawn = "true"))
 	TObjectPtr<AActor> MapActor;
 
 	//移動方向を変更する
 	UFUNCTION(BlueprintCallable, Category = "Animal Movement")
 	void SetMoveDirection(FVector NewMoveDirection);
+
+	//タイル情報を問い合わせるマップを設定する
+	UFUNCTION(BlueprintCallable, Category = "Animal Map")
+	void SetMapActor(AActor* NewMapActor);
 
 protected:
 	//足元のマスを読み取り、移動方向を変更するための入口
