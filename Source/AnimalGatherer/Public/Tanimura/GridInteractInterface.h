@@ -23,7 +23,6 @@ public:
     /**
      * 指定された座標（GridCoords）のマスが、現在どの状態（方向）かを取得する
      * C++でもBlueprintでもオーバーライド（実装）できるように設定
-     * BlueprintNativeEventに設定したから、overrideのとき必ず後ろに_Implementationを入ること（今回はGetCellState_Implementation）
      */
     UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Grid Interaction")
     ETileType GetCellState(FIntPoint GridCoords) const;
