@@ -30,6 +30,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
 	FRotator SpawnRotation = FRotator::ZeroRotator;
 
+	//ê∂ê¨ÇµÇΩìÆï®Ç…ê›íËÇ∑ÇÈÉ}ÉbÉv
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map")
+	TObjectPtr<AActor> MapActor;
+
 	//âΩïbÇ≤Ç∆Ç…ê∂ê¨Ç∑ÇÈÇ©
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner", meta = (ClampMin = "0.1", UIMin = "0.1"))
 	float SpawnInterval = 3.0f;
