@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Tanimura/GridInteractInterface.h"
+#include "GameTypes.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "MapManager.generated.h"
 
@@ -14,7 +14,7 @@
  */
 
 UCLASS()
-class ANIMALGATHERER_API AMapManager : public AActor, public IGridInteractInterface
+class ANIMALGATHERER_API AMapManager : public AActor
 {
 	GENERATED_BODY()
 
@@ -85,13 +85,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Map")
 	void UpdateMapVisuals();
-
-	//==============================================================================
-	// IGridInteractInterface 実装
-	//==============================================================================
-
-	/** @brief 指定グリッド座標のタイル状態を返す。 */
-	virtual ETileType GetCellState_Implementation(FIntPoint GridCoords) const override;
 
 	//==============================================================================
 	// エディタ構築処理
