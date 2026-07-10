@@ -19,7 +19,6 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	//動物を動かすための基準コンポーネント
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Animal Components")
@@ -37,6 +36,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Animal Movement")
 	FVector CurrentMoveDirection = FVector::ZeroVector;
 
+	//1タイルのワールドサイズ
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map", meta = (ClampMin = "1.0", UIMin = "1.0"))
+	float TileSize = 100.0f;
+
+	//タイル情報を問い合わせる対象
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Animal Map")
+	TObjectPtr<AActor> MapActor;
+
 	//移動方向を変更する
 	UFUNCTION(BlueprintCallable, Category = "Animal Movement")
 	void SetMoveDirection(FVector NewMoveDirection);
@@ -47,4 +54,8 @@ protected:
 
 	//現在の方向へ移動する
 	void MoveAnimal(float DeltaTime);
+
+private:
+	FIntPoint LastGridCoords = FIntPoint::ZeroValue;
+	bool bHasLastGridCoords = false;
 };
