@@ -38,6 +38,28 @@ void AMapManager::BeginPlay()
 	Super::BeginPlay();
 }
 
+/**
+ * @brief IGridInteractInterface の実装。指定グリッド座標のタイル状態を返す。
+ * インデックス = Y * MapWidth + X で GridData を線形アクセスする。
+ * BlueprintNativeEvent のため、関数名の後ろに _Implementationが必要。
+ * @param GridCoords グリッド座標（X: 列, Y: 行）。
+ * @return 該当タイルの ETileType。範囲外の場合は Empty を返す。
+ */
+ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
+{
+	const int32 Index = GridCoords.Y * MapWidth + GridCoords.X;
+
+	if (GridData.IsValidIndex(Index))
+	{
+		return GridData[Index].TileType;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("GetCellState: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
+		GridCoords.X, GridCoords.Y, MapWidth, MapHeight);
+
+	return ETileType::Empty;
+}
+
 
 /**
  * @brief 全タイルのビジュアルを最新状態に更新する。
