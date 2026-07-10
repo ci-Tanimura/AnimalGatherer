@@ -9,6 +9,7 @@ AMainGameMode::AMainGameMode()
     P1Score = 0;
     P2Score = 0;
     CachedAnimalSpawner = nullptr;
+    TimeRemaining = 0;
 }
 
 void AMainGameMode::BeginPlay()
@@ -25,6 +26,17 @@ void AMainGameMode::BeginPlay()
     if (P2Controller && CachedAnimalSpawner) {
         CachedAnimalSpawner->StartSpawning();
     }
+
+    // 制限時間の初期化
+    TimeRemaining = TotalGameTime;
+
+    // 最初の一歩としてUIに初期時間を通知
+    if (OnTimeChanged.IsBound()) {
+        OnTimeChanged.Broadcast(TimeRemaining);
+    }
+
+    // 1秒ごとにAdvanceTimerを呼び出すタイマーを設定
+    GetWorldTimerManager().SetTimer( GameTimerHandle, this, &AMainGameMode::AdvanceTimer, 1.0f, true );
 }
 
 void AMainGameMode::AddScore(int32 PlayerID, int32 ScoreToAdd)
@@ -48,5 +60,33 @@ void AMainGameMode::EndGame()
         CachedAnimalSpawner->StopSpawning();
     }
 
+    // デバッグ表示
+    UE_LOG(LogTemp, Warning, TEXT("GAME OVER! P1: %d vs P2: %d"), P1Score, P2Score);
+
     // ここに「勝敗画面のUIを表示する」などの処理を今後追加していく
+}
+
+void AMainGameMode::AdvanceTimer()
+{
+    // 残り時間を1秒減らす
+    TimeRemaining--;
+
+    // 残り時間の変更を通知
+    if (OnTimeChanged.IsBound()) {
+        OnTimeChanged.Broadcast(TimeRemaining);
+    }
+
+    // タイムアップ判定
+    if (TimeRemaining <= 0) {
+        // タイマーを停止
+        GetWorldTimerManager().ClearTimer(GameTimerHandle);
+
+        // タイムアップを通知
+        if (OnTimeUp.IsBound()) {
+            OnTimeUp.Broadcast();
+        }
+
+        // ゲーム終了処理（動物のスポーン停止など）を実行
+        EndGame();
+    }
 }
