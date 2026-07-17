@@ -61,6 +61,30 @@ ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 }
 
 /**
+ * @brief 指定グリッド座標のタイルデータを実行時に変更する。
+ *        範囲チェック後、GridData を更新しビジュアルも即時反映する。
+ * @param GridX グリッドX座標（列）。
+ * @param GridY グリッドY座標（行）。
+ * @param NewType 設定する新しいタイル種類。
+ */
+void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
+{
+	if (GridX < 0 || GridX >= MapWidth || GridY < 0 || GridY >= MapHeight)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetTileData: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
+			GridX, GridY, MapWidth, MapHeight);
+		return;
+	}
+
+	const int32 Index = GridY * MapWidth + GridX;
+	if (GridData.IsValidIndex(Index))
+	{
+		GridData[Index].TileType = NewType;
+		UpdateMapVisuals();
+	}
+}
+
+/**
  * @brief 全タイルのビジュアルを最新状態に更新する。
  *        全 StateVisuals をクリア後、GridData を走査し、Empty 以外のタイルに対応する
  *        HISM レイヤーへインスタンスを追加する。

@@ -86,6 +86,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Map")
 	void UpdateMapVisuals();
 
+	/**
+	 * @brief 指定グリッド座標のタイルデータを実行時に変更する。
+	 *        範囲外の場合は警告ログを出力し何もしない。
+	 * @param GridX グリッドX座標（列）。
+	 * @param GridY グリッドY座標（行）。
+	 * @param NewType 設定する新しいタイル種類。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Map")
+	void SetTileData(int32 GridX, int32 GridY, ETileType NewType);
+
 	//==============================================================================
 	// IGridInteractInterface 実装
 	//==============================================================================
