@@ -2,6 +2,12 @@
 
 Developed with Unreal Engine 5
 
+\## 人のソースを修正するとき
+
+	// 2025.09.07 ウー start
+	LoadQuestionsData();
+	// 2025.09.07 ウー end
+	//TestRandomQuestions();←もともとのコードも消さない！
 
 
 \## 🌿 コミットメッセージ、ブランチ名の命名規則
