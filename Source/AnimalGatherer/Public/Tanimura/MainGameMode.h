@@ -7,6 +7,10 @@
 #include "Takeuchi/Actor/AnimalSpawner.h"
 #include "MainGameMode.generated.h"
 
+// 2025.09.07 Lee start
+class ACursorPawn;
+// 2025.09.07 Lee end
+
 // スコアが変わったことを通知するデリゲート
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnScoreChangedSignature, int32, NewP1Score, int32, NewP2Score);
 // 残り時間が更新されたことを通知するデリゲート（引数：残り秒数）
@@ -34,6 +38,10 @@ public:
     // タイムアップ時にゲームを終わらせる
     UFUNCTION(BlueprintCallable, Category = "GameMode|Flow")
     void EndGame();
+
+	// 2025.09.07 Lee start
+	virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
+	// 2025.09.07 Lee end
 
     // 得点表示更新用イベント
     UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")

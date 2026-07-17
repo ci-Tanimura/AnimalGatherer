@@ -37,8 +37,4 @@ struct FMapTileData
 	/** @brief タイルの種類。 */
 	UPROPERTY(BlueprintReadWrite)
 	ETileType TileType = ETileType::Empty;
-
-	/** @brief 所有プレイヤーID（0 は未所有）。 */
-	UPROPERTY(BlueprintReadWrite)
-	int32 OwnerPlayerID = 0;
 };

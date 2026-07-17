@@ -3,6 +3,10 @@
 
 #include "Tanimura/MainGameMode.h"
 #include "Kismet/GameplayStatics.h"
+// 2025.09.07 Lee start
+#include "Lee/CursorPawn.h"
+#include "Lee/MapManager.h"
+// 2025.09.07 Lee end
 #include "Blueprint/UserWidget.h"
 
 AMainGameMode::AMainGameMode()
@@ -101,3 +105,42 @@ void AMainGameMode::AdvanceTimer()
         EndGame();
     }
 }
+// 2025.09.07 Lee start
+APawn* AMainGameMode::SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot)
+{
+	APawn* SpawnedPawn = Super::SpawnDefaultPawnFor_Implementation(NewPlayer, StartSpot);
+
+	ACursorPawn* CursorPawn = Cast<ACursorPawn>(SpawnedPawn);
+	if (!CursorPawn)
+	{
+		return SpawnedPawn;
+	}
+
+	AMapManager* MapManager = Cast<AMapManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AMapManager::StaticClass()));
+	if (!MapManager)
+	{
+		return SpawnedPawn;
+	}
+
+	int32 PlayerID = 0;
+	int32 StartX = 0;
+	int32 StartY = 0;
+
+	if (APlayerController* PC = Cast<APlayerController>(NewPlayer))
+	{
+		if (ULocalPlayer* LP = PC->GetLocalPlayer())
+		{
+			PlayerID = LP->GetControllerId();
+			if (PlayerID == 1)
+			{
+				StartX = MapManager->MapWidth - 1;
+				StartY = MapManager->MapHeight - 1;
+			}
+		}
+	}
+
+	CursorPawn->InitCursor(MapManager, PlayerID, StartX, StartY);
+
+	return SpawnedPawn;
+}
+// 2025.09.07 Lee end
