@@ -3,6 +3,7 @@
 
 #include "Tanimura/MainGameMode.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/UserWidget.h"
 
 AMainGameMode::AMainGameMode()
 {
@@ -30,13 +31,23 @@ void AMainGameMode::BeginPlay()
     // 制限時間の初期化
     TimeRemaining = TotalGameTime;
 
-    // 最初の一歩としてUIに初期時間を通知
+    // まずUIに初期時間を通知
     if (OnTimeChanged.IsBound()) {
         OnTimeChanged.Broadcast(TimeRemaining);
     }
 
     // 1秒ごとにAdvanceTimerを呼び出すタイマーを設定
     GetWorldTimerManager().SetTimer( GameTimerHandle, this, &AMainGameMode::AdvanceTimer, 1.0f, true );
+
+    if (HUDWidgetClass)
+    {
+        UUserWidget* HUDWidget = CreateWidget<UUserWidget>(GetWorld(), HUDWidgetClass);
+        if (HUDWidget)
+        {
+            HUDWidget->AddToViewport();
+        }
+    }
+
 }
 
 void AMainGameMode::AddScore(int32 PlayerID, int32 ScoreToAdd)

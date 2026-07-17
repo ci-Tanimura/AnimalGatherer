@@ -58,6 +58,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Timer")
     int32 TotalGameTime = 120;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
+    TSubclassOf<UUserWidget> HUDWidgetClass;
+
 private:
     // レベル上のスポーナーへの参照
     UPROPERTY()
