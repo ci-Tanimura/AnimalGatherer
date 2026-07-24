@@ -1,7 +1,9 @@
 ﻿#include "Takeuchi/Pawn/AnimalBase.h"
 
 #include "Components/SceneComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Tanimura/GridInteractInterface.h"
+#include "Tanimura/MainGameMode.h"
 
 AAnimalBase::AAnimalBase()
 {
@@ -31,7 +33,6 @@ void AAnimalBase::Tick(float DeltaTime)
 	//現在いるタイルの情報を読み取り、必要なら移動方向を更新する
 	UpdateMoveDirectionFromCurrentTile();
 
-	//更新された移動方向に従って動物を移動させる
 	MoveAnimal(DeltaTime);
 }
 
@@ -111,6 +112,28 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile()
 	case ETileType::DirRight:
 		SetMoveDirection(FVector(1.0f, 0.0f, 0.0f));
 		break;
+
+	case ETileType::GoalP1:
+	{
+		if (AMainGameMode* GameMode =
+			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
+		{
+			GameMode->AddScore(0, 1);
+			Destroy();
+		}
+		break;
+	}
+
+	case ETileType::GoalP2:
+	{
+		if (AMainGameMode* GameMode =
+			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
+		{
+			GameMode->AddScore(1, 1);
+			Destroy();
+		}
+		break;
+	}
 
 	default:
 		break;
