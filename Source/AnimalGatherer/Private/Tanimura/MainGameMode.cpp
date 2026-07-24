@@ -8,6 +8,7 @@
 #include "Lee/MapManager.h"
 // 2025.09.07 Lee end
 #include "Blueprint/UserWidget.h"
+#include "Tanimura/MyGameInstance.h"
 
 AMainGameMode::AMainGameMode()
 {
@@ -78,7 +79,35 @@ void AMainGameMode::EndGame()
     // デバッグ表示
     UE_LOG(LogTemp, Warning, TEXT("GAME OVER! P1: %d vs P2: %d"), P1Score, P2Score);
 
-    // ここに「勝敗画面のUIを表示する」などの処理を今後追加していく
+    // 2. タイムアップ効果音の再生
+    if (TimeUpSound) {
+        UGameplayStatics::PlaySound2D(this, TimeUpSound);
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::EndGame: TimeUpSound が設定されていません。"));
+    }
+
+    // GameInstanceを取得してスコアと勝敗をセット
+    if (UMyGameInstance* GI = Cast<UMyGameInstance>(GetGameInstance())) {
+        GI->SetFinalResult(P1Score, P2Score);
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::EndGame: UMyGameInstance の取得に失敗しました。"));
+    }
+
+    // 3. 指定した秒数（1秒）待ってから TransitionToResultLevel を呼び出すタイマーをセット
+    GetWorldTimerManager().SetTimer(ResultDelayTimerHandle, this, &AMainGameMode::TransitionToResultLevel, TimeUpDelay, false);
+}
+
+void AMainGameMode::TransitionToResultLevel()
+{
+    // リザルトレベルへ移動
+    if (!ResultLevelName.IsNone()) {
+        UGameplayStatics::OpenLevel(this, ResultLevelName);
+    }
+    else {
+        UE_LOG(LogTemp, Error, TEXT("AMainGameMode::TransitionToResultLevel: ResultLevelName が設定されていません。"));
+    }
 }
 
 void AMainGameMode::AdvanceTimer()

@@ -64,10 +64,22 @@ protected:
 
     // 制限時間（秒）
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Timer")
-    int32 TotalGameTime = 120;
+    int32 TotalGameTime = 3;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
     TSubclassOf<UUserWidget> HUDWidgetClass;
+
+    // 遷移先のリザルトレベル名
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Level")
+    FName ResultLevelName = TEXT("LV_Result");
+
+    // ゲーム終了時に再生する効果音
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Audio")
+    USoundBase* TimeUpSound;
+
+    // タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
+    float TimeUpDelay = 1.0f;
 
 private:
     // レベル上のスポーナーへの参照
@@ -80,6 +92,12 @@ private:
     // タイマーを管理するためのハンドル
     FTimerHandle GameTimerHandle;
 
+    // 演出用タイマーのハンドル
+    FTimerHandle ResultDelayTimerHandle;
+
     // 残り時間を減らす
     void AdvanceTimer();
+
+    // レベル遷移を行う処理
+    void TransitionToResultLevel();
 };
