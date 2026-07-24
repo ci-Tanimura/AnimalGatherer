@@ -1,4 +1,4 @@
-#include "Takeuchi/Actor/AnimalSpawner.h"
+ï»¿#include "Takeuchi/Actor/AnimalSpawner.h"
 
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -15,7 +15,7 @@ void AAnimalSpawner::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//ƒ}ƒbƒvŽQÆ‚ª–¢Ý’è‚Ìê‡‚ÍAƒŒƒxƒ‹ã‚ÌMapManager‚ðŽ©“®Žæ“¾‚·‚é
+	//ãƒžãƒƒãƒ—å‚ç…§ãŒæœªè¨­å®šã®å ´åˆã¯ã€ãƒ¬ãƒ™ãƒ«ä¸Šã®MapManagerã‚’è‡ªå‹•å–å¾—ã™ã‚‹
 	if (!MapActor)
 	{
 		MapActor = UGameplayStatics::GetActorOfClass(GetWorld(), AMapManager::StaticClass());
@@ -26,7 +26,7 @@ void AAnimalSpawner::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("AnimalSpawner: MapActor is not set."));
 	}
 
-	//Ý’è‚ª—LŒø‚È‚çƒQ[ƒ€ŠJŽnŽž‚ÉŽ©“®‚Å¶¬‚ðŽn‚ß‚é
+	//è¨­å®šãŒæœ‰åŠ¹ãªã‚‰ã‚²ãƒ¼ãƒ é–‹å§‹æ™‚ã«è‡ªå‹•ã§ç”Ÿæˆã‚’å§‹ã‚ã‚‹
 	if (bStartSpawningOnBeginPlay)
 	{
 		StartSpawning();
@@ -46,13 +46,13 @@ void AAnimalSpawner::StartSpawning()
 		return;
 	}
 
-	//‚·‚Å‚É¶¬ƒ^ƒCƒ}[‚ª“®‚¢‚Ä‚¢‚éê‡‚ÍAŠJŽnˆ—‚ðd•¡‚³‚¹‚È‚¢
+	//ã™ã§ã«ç”Ÿæˆã‚¿ã‚¤ãƒžãƒ¼ãŒå‹•ã„ã¦ã„ã‚‹å ´åˆã¯ã€é–‹å§‹å‡¦ç†ã‚’é‡è¤‡ã•ã›ãªã„
 	if (GetWorldTimerManager().IsTimerActive(SpawnTimerHandle))
 	{
 		return;
 	}
 
-	//ŠJŽn’¼Œã‚É1‘Ì¶¬‚µA‚»‚ÌŒã‚Í SpawnInterval •b‚²‚Æ‚É¶¬‚ðŽŽ‚·
+	//é–‹å§‹ç›´å¾Œã«1ä½“ç”Ÿæˆã—ã€ãã®å¾Œã¯ SpawnInterval ç§’ã”ã¨ã«ç”Ÿæˆã‚’è©¦ã™
 	SpawnAnimal();
 
 	GetWorldTimerManager().SetTimer(SpawnTimerHandle,this,&AAnimalSpawner::TrySpawnAnimal,SpawnInterval,true,SpawnInterval);
@@ -73,7 +73,7 @@ void AAnimalSpawner::TrySpawnAnimal()
 
 APawn* AAnimalSpawner::SpawnAnimal()
 {
-	//‚·‚Å‚ÉÁ‚¦‚½“®•¨‚ð”‚¦‚È‚¢‚æ‚¤‚ÉA¶¬‘O‚ÉƒŠƒXƒg‚ð®—‚·‚é
+	//ã™ã§ã«æ¶ˆãˆãŸå‹•ç‰©ã‚’æ•°ãˆãªã„ã‚ˆã†ã«ã€ç”Ÿæˆå‰ã«ãƒªã‚¹ãƒˆã‚’æ•´ç†ã™ã‚‹
 	CleanupSpawnedAnimals();
 
 	if (SpawnedAnimals.Num() >= MaxAnimalCount || !AnimalClass || !GetWorld())
@@ -84,7 +84,7 @@ APawn* AAnimalSpawner::SpawnAnimal()
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 
-	//Žw’èˆÊ’u‚É‰½‚©‚ ‚Á‚Ä‚àA‰Â”\‚È‚çˆÊ’u‚ð’²®‚µ‚ÄƒXƒ|[ƒ“‚·‚é
+	//æŒ‡å®šä½ç½®ã«ä½•ã‹ã‚ã£ã¦ã‚‚ã€å¯èƒ½ãªã‚‰ä½ç½®ã‚’èª¿æ•´ã—ã¦ã‚¹ãƒãƒ¼ãƒ³ã™ã‚‹
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	APawn* SpawnedAnimal = GetWorld()->SpawnActor<APawn>(AnimalClass,SpawnLocation,SpawnRotation,SpawnParams);
@@ -93,14 +93,14 @@ APawn* AAnimalSpawner::SpawnAnimal()
 	{
 		if (AAnimalBase* AnimalBase = Cast<AAnimalBase>(SpawnedAnimal))
 		{
-			//AnimalBase‚ªŽ©“®Žæ“¾‚µ‚½ŽQÆ‚ðnullptr‚Åã‘‚«‚µ‚È‚¢
+			//AnimalBaseãŒè‡ªå‹•å–å¾—ã—ãŸå‚ç…§ã‚’nullptrã§ä¸Šæ›¸ãã—ãªã„
 			if (MapActor)
 			{
 				AnimalBase->SetMapActor(MapActor);
 			}
 		}
 
-		//Å‘å”‚ðŠÇ—‚·‚é‚½‚ßA¶¬‚µ‚½“®•¨‚ð‹L˜^‚·‚é
+		//æœ€å¤§æ•°ã‚’ç®¡ç†ã™ã‚‹ãŸã‚ã€ç”Ÿæˆã—ãŸå‹•ç‰©ã‚’è¨˜éŒ²ã™ã‚‹
 		SpawnedAnimals.Add(SpawnedAnimal);
 	}
 
@@ -124,7 +124,7 @@ int32 AAnimalSpawner::GetSpawnedAnimalCount() const
 
 void AAnimalSpawner::CleanupSpawnedAnimals()
 {
-	//”z—ñ‚©‚çíœ‚µ‚Ä‚à“YŽš‚ª‚¸‚ê‚É‚­‚¢‚æ‚¤‚ÉAŒã‚ë‚©‚çŠm”F‚·‚é
+	//é…åˆ—ã‹ã‚‰å‰Šé™¤ã—ã¦ã‚‚æ·»å­—ãŒãšã‚Œã«ãã„ã‚ˆã†ã«ã€å¾Œã‚ã‹ã‚‰ç¢ºèªã™ã‚‹
 	for (int32 Index = SpawnedAnimals.Num() - 1; Index >= 0; --Index)
 	{
 		if (!IsValid(SpawnedAnimals[Index]))
