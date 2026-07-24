@@ -7,9 +7,9 @@
 #include "Takeuchi/Actor/AnimalSpawner.h"
 #include "MainGameMode.generated.h"
 
-// 2025.09.07 Lee start
+// 2026.07.24 Lee start
 class ACursorPawn;
-// 2025.09.07 Lee end
+// 2026.07.24 Lee end
 
 // スコアが変わったことを通知するデリゲート
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnScoreChangedSignature, int32, NewP1Score, int32, NewP2Score);
@@ -69,7 +69,7 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
     TSubclassOf<UUserWidget> HUDWidgetClass;
 
-<<<<<<< Updated upstream
+
     // 遷移先のリザルトレベル名
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Level")
     FName ResultLevelName = TEXT("LV_Result");
@@ -81,7 +81,7 @@ protected:
     // タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
     float TimeUpDelay = 1.0f;
-=======
+
     // 2026.07.24 Lee start
     /** @brief 1P用カーソル Pawn のブループリントクラス。 */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
@@ -91,7 +91,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
     TSubclassOf<ACursorPawn> CursorPawnClass_P2;
     // 2026.07.24 Lee end
->>>>>>> Stashed changes
 
 private:
     // レベル上のスポーナーへの参照
