@@ -79,12 +79,21 @@ public:
 	//==============================================================================
 
 	/**
-	 * @brief 全タイルのビジュアルを最新状態に更新する。
+	 * @brief 全タイルのビジュアルを最新状態に更新する（全レイヤーを再構築）。
+	 *        初期化用。ランタイムの単一タイル変更では RefreshStateVisual() を使用すること。
 	 *        StateVisuals をクリア後、GridData を走査してメッシュインスタンスを再配置する。
 	 *        矢印タイルは方向に合わせた回転を適用する。
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Map")
 	void UpdateMapVisuals();
+
+	/**
+	 * @brief 指定された1つのタイル状態レイヤーのみを再構築する。
+	 *        GridData を走査し、該当する全タイルを一括で再描画する。
+	 *        単一タイル変更時のちらつき防止のため、全レイヤー再構築の代わりに使用する。
+	 * @param StateType 再構築対象のタイル状態。
+	 */
+	void RefreshStateVisual(ETileType StateType);
 
 	/**
 	 * @brief 指定グリッド座標のタイルデータを実行時に変更する。

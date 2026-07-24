@@ -3,10 +3,10 @@
 
 #include "Tanimura/MainGameMode.h"
 #include "Kismet/GameplayStatics.h"
-// 2025.09.07 Lee start
+// 2026.07.24 Lee start
 #include "Lee/CursorPawn.h"
 #include "Lee/MapManager.h"
-// 2025.09.07 Lee end
+// 2026.07.24 Lee end
 #include "Blueprint/UserWidget.h"
 
 AMainGameMode::AMainGameMode()
@@ -105,9 +105,29 @@ void AMainGameMode::AdvanceTimer()
         EndGame();
     }
 }
-// 2025.09.07 Lee start
+// 2026.07.24 Lee start
 APawn* AMainGameMode::SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot)
 {
+	// プレイヤーIDを先に取得
+	int32 PlayerID = 0;
+	int32 StartX = 0;
+	int32 StartY = 0;
+
+	if (APlayerController* PC = Cast<APlayerController>(NewPlayer))
+	{
+		if (ULocalPlayer* LP = PC->GetLocalPlayer())
+		{
+			PlayerID = LP->GetControllerId();
+		}
+	}
+
+	// プレイヤーIDに応じて異なる Pawn クラスを選択（BP_CursorPawn_P1 / BP_CursorPawn_P2）
+	TSubclassOf<APawn> SelectedPawnClass = (PlayerID == 1) ? CursorPawnClass_P2 : CursorPawnClass_P1;
+	if (SelectedPawnClass)
+	{
+		DefaultPawnClass = SelectedPawnClass;
+	}
+
 	APawn* SpawnedPawn = Super::SpawnDefaultPawnFor_Implementation(NewPlayer, StartSpot);
 
 	ACursorPawn* CursorPawn = Cast<ACursorPawn>(SpawnedPawn);
@@ -122,25 +142,15 @@ APawn* AMainGameMode::SpawnDefaultPawnFor_Implementation(AController* NewPlayer,
 		return SpawnedPawn;
 	}
 
-	int32 PlayerID = 0;
-	int32 StartX = 0;
-	int32 StartY = 0;
-
-	if (APlayerController* PC = Cast<APlayerController>(NewPlayer))
+	// P2 は右下隅から開始
+	if (PlayerID == 1)
 	{
-		if (ULocalPlayer* LP = PC->GetLocalPlayer())
-		{
-			PlayerID = LP->GetControllerId();
-			if (PlayerID == 1)
-			{
-				StartX = MapManager->MapWidth - 1;
-				StartY = MapManager->MapHeight - 1;
-			}
-		}
+		StartX = MapManager->MapWidth - 1;
+		StartY = MapManager->MapHeight - 1;
 	}
 
 	CursorPawn->InitCursor(MapManager, PlayerID, StartX, StartY);
 
 	return SpawnedPawn;
 }
-// 2025.09.07 Lee end
+// 2026.07.24 Lee end

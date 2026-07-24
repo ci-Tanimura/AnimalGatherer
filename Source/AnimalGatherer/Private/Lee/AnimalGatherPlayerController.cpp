@@ -35,15 +35,33 @@ void AAnimalGatherPlayerController::BeginPlay()
 		}
 	}
 
-	// Enhanced Input Mapping Context をこのプレイヤー専用に追加
-	if (APlayerController* PC = Cast<APlayerController>(this))
+	// IMC の登録は SetPlayer() で行う（Player が確実に設定された後に実行）
+}
+
+/**
+ * @brief Player が関連付けられた後に呼ばれる。
+ *        ここで ControllerId に応じた IMC を登録する。
+ *        (動的に生成された P2 では BeginPlay 時点で Player が未設定のため）
+ */
+void AAnimalGatherPlayerController::SetPlayer(UPlayer* InPlayer)
+{
+	Super::SetPlayer(InPlayer);
+
+	if (ULocalPlayer* LP = Cast<ULocalPlayer>(InPlayer))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
-			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
 		{
-			if (IMC_Default)
+			int32 ControllerId = LP->GetControllerId();
+			UInputMappingContext* SelectedIMC = (ControllerId == 1) ? IMC_P2 : IMC_P1;
+			if (SelectedIMC)
 			{
-				Subsystem->AddMappingContext(IMC_Default, 0);
+				Subsystem->AddMappingContext(SelectedIMC, 0);
+				UE_LOG(LogTemp, Log, TEXT("AnimalGatherPC: IMC registered for ControllerId=%d"), ControllerId);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("AnimalGatherPC: SelectedIMC is null for ControllerId=%d"), ControllerId);
 			}
 		}
 	}
@@ -60,8 +78,28 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent);
 	if (!EIC)
 	{
-		return;
+		// 動的生成された P2 では InputComponent が UEnhancedInputComponent に
+		// 自動アップグレードされない場合があるため、手動で再作成する
+		UE_LOG(LogTemp, Warning, TEXT("AnimalGatherPC: InputComponent が Enhanced ではない (%s) → 再作成します"),
+			InputComponent ? *InputComponent->GetClass()->GetName() : TEXT("null"));
+
+		if (InputComponent)
+		{
+			InputComponent->DestroyComponent();
+		}
+		InputComponent = NewObject<UEnhancedInputComponent>(this, TEXT("PC_InputComponent0"));
+		InputComponent->RegisterComponent();
+
+		EIC = Cast<UEnhancedInputComponent>(InputComponent);
+		if (!EIC)
+		{
+			UE_LOG(LogTemp, Error, TEXT("AnimalGatherPC: UEnhancedInputComponent の作成に失敗"));
+			return;
+		}
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("AnimalGatherPC: SetupInputComponent → InputComponent=%s, PlayerID will be set by pawn"),
+		*EIC->GetName());
 
 	// カーソル移動（Axis2D → 支配的な軸方向に1マス移動）
 	if (IA_MoveCursor)
@@ -107,10 +145,11 @@ void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value
 	const FVector2D Input = Value.Get<FVector2D>();
 
 	// 支配的な軸を選択（斜め入力を防止）
+	// 注：カメラ俯視により MapManager の X 軸と画面左右が逆。DeltaX を反転して補正。
 	if (FMath::Abs(Input.X) >= FMath::Abs(Input.Y))
 	{
 		// X 軸優先（左右）
-		const int32 Delta = Input.X > 0.0f ? 1 : (Input.X < 0.0f ? -1 : 0);
+		const int32 Delta = Input.X > 0.0f ? -1 : (Input.X < 0.0f ? 1 : 0);
 		if (Delta != 0)
 		{
 			CursorPawn->MoveCursor(Delta, 0);

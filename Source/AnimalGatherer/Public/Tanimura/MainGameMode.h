@@ -7,9 +7,9 @@
 #include "Takeuchi/Actor/AnimalSpawner.h"
 #include "MainGameMode.generated.h"
 
-// 2025.09.07 Lee start
+// 2026.07.24 Lee start
 class ACursorPawn;
-// 2025.09.07 Lee end
+// 2026.07.24 Lee end
 
 // スコアが変わったことを通知するデリゲート
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnScoreChangedSignature, int32, NewP1Score, int32, NewP2Score);
@@ -68,6 +68,16 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
     TSubclassOf<UUserWidget> HUDWidgetClass;
+
+    // 2026.07.24 Lee start
+    /** @brief 1P用カーソル Pawn のブループリントクラス。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+    TSubclassOf<ACursorPawn> CursorPawnClass_P1;
+
+    /** @brief 2P用カーソル Pawn のブループリントクラス。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+    TSubclassOf<ACursorPawn> CursorPawnClass_P2;
+    // 2026.07.24 Lee end
 
 private:
     // レベル上のスポーナーへの参照
