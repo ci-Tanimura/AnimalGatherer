@@ -69,6 +69,7 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
     TSubclassOf<UUserWidget> HUDWidgetClass;
 
+<<<<<<< Updated upstream
     // 遷移先のリザルトレベル名
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Level")
     FName ResultLevelName = TEXT("LV_Result");
@@ -80,6 +81,17 @@ protected:
     // タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
     float TimeUpDelay = 1.0f;
+=======
+    // 2026.07.24 Lee start
+    /** @brief 1P用カーソル Pawn のブループリントクラス。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+    TSubclassOf<ACursorPawn> CursorPawnClass_P1;
+
+    /** @brief 2P用カーソル Pawn のブループリントクラス。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+    TSubclassOf<ACursorPawn> CursorPawnClass_P2;
+    // 2026.07.24 Lee end
+>>>>>>> Stashed changes
 
 private:
     // レベル上のスポーナーへの参照

@@ -34,13 +34,12 @@ void ACursorPawn::InitCursor(AMapManager* InMapManager, int32 InPlayerID, int32 
 	PlayerID = InPlayerID;
 	GridX = StartGridX;
 	GridY = StartGridY;
-	CurrentDirection = ETileType::DirUp;
 
 	SnapToGrid(GridX, GridY);
 }
 
 /**
- * @brief カーソル移動。境界チェック → 座標更新 → 方向更新 → スナップ。
+ * @brief カーソル移動。境界チェック → 座標更新 → スナップ。
  */
 void ACursorPawn::MoveCursor(int32 DeltaX, int32 DeltaY)
 {
@@ -61,24 +60,6 @@ void ACursorPawn::MoveCursor(int32 DeltaX, int32 DeltaY)
 	GridX = NewX;
 	GridY = NewY;
 
-	// 移動方向を CurrentDirection に反映
-	if (DeltaX > 0)
-	{
-		CurrentDirection = ETileType::DirRight;
-	}
-	else if (DeltaX < 0)
-	{
-		CurrentDirection = ETileType::DirLeft;
-	}
-	else if (DeltaY > 0)
-	{
-		CurrentDirection = ETileType::DirUp;
-	}
-	else if (DeltaY < 0)
-	{
-		CurrentDirection = ETileType::DirDown;
-	}
-
 	SnapToGrid(GridX, GridY);
 }
 
@@ -96,10 +77,11 @@ void ACursorPawn::SnapToGrid(int32 X, int32 Y)
 	const FVector MapOrigin = MapManagerRef->GetActorLocation();
 	const float TileSz = MapManagerRef->TileSize;
 
-	// 格子中心 + Zオフセット（タイルより上に表示）
+	// タイル中心 + Zオフセット（タイルより上に表示）
+	// HISM インスタンスの pivot はメッシュ中心なので、X*TileSz がそのままタイル中心
 	const FVector NewLocation = MapOrigin + FVector(
-		X * TileSz + TileSz * 0.5f,
-		Y * TileSz + TileSz * 0.5f,
+		X * TileSz,
+		Y * TileSz,
 		50.0f
 	);
 

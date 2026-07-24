@@ -50,9 +50,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* IA_Set_Right = nullptr;
 
-	/** @brief デフォルト Input Mapping Context。 */
+	/** @brief 1P用 Input Mapping Context（WASD + 配置キー）。 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputMappingContext* IMC_Default = nullptr;
+	UInputMappingContext* IMC_P1 = nullptr;
+
+	/** @brief 2P用 Input Mapping Context（矢印キー + 配置キー）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputMappingContext* IMC_P2 = nullptr;
 
 	//==============================================================================
 	// 公開メソッド
@@ -73,6 +77,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
+	virtual void SetPlayer(UPlayer* InPlayer) override;
 
 private:
 	//==============================================================================
