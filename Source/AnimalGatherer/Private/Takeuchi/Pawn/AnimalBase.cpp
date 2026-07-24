@@ -43,7 +43,7 @@ void AAnimalBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	//現在いるタイルの情報を読み取り、必要なら移動方向を更新する
-	UpdateMoveDirectionFromCurrentTile();
+	UpdateMoveDirectionFromCurrentTile(DeltaTime);
 
 	MoveAnimal(DeltaTime);
 }
@@ -67,19 +67,13 @@ void AAnimalBase::SetMapActor(AActor* NewMapActor)
 }
 
 //足元のマスを読み取り、SetMoveDirectionを呼ぶ
-void AAnimalBase::UpdateMoveDirectionFromCurrentTile()
+void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 {
 	//マップ参照が設定されていない場合は、タイル情報を取得できないため処理しない
-	if (!MapActor)
-	{
-		return;
-	}
+	if (!MapActor)return;
 
 	//参照先が GridInteractInterface を実装していない場合は、タイル情報を取得できないため処理しない
-	if (!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass()))
-	{
-		return;
-	}
+	if (!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass()))return;
 
 	//動物の座標を取得
 	const FVector AnimalLocation = GetActorLocation();
@@ -87,19 +81,38 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile()
 	//マップアクターの位置を、グリッド計算の原点として扱う
 	const FVector MapOrigin = MapActor->GetActorLocation();
 
-	//動物のワールド座標を、マップ上のグリッド座標に変換する
+	//各タイルは MapOrigin + GridCoords * TileSize の位置を中心として配置されるため、
+	//最も近いタイル中心のグリッド座標へ変換する
 	const FIntPoint CurrentGridCoords(
-		FMath::FloorToInt((AnimalLocation.X - MapOrigin.X) / TileSize),
-		FMath::FloorToInt((AnimalLocation.Y - MapOrigin.Y) / TileSize)
+		FMath::RoundToInt((AnimalLocation.X - MapOrigin.X) / TileSize),
+		FMath::RoundToInt((AnimalLocation.Y - MapOrigin.Y) / TileSize)
 	);
 
 	//前回と同じマスにいる場合は、同じタイル処理を繰り返さない
-	if (bHasLastGridCoords && CurrentGridCoords == LastGridCoords)
-	{
-		return;
-	}
+	if (bHasLastGridCoords && CurrentGridCoords == LastGridCoords)return;
 
-	//現在のマスを、最後に処理したマスとして記録する
+
+	//現在マスの中心座標
+	const FVector CurrentTileCenter(
+		MapOrigin.X + CurrentGridCoords.X * TileSize,
+		MapOrigin.Y + CurrentGridCoords.Y * TileSize,
+		AnimalLocation.Z
+	);
+
+	const float FrameMoveDistance = MoveSpeed * DeltaTime;
+	const float EffectiveTolerance =
+		FMath::Max(DirectionReadTolerance, FrameMoveDistance * 2.0f);
+
+	const float DistanceToTileCenter =
+		FVector::Dist2D(AnimalLocation, CurrentTileCenter);
+
+	//中央付近に来るまではタイルを読まない
+	if (DistanceToTileCenter > EffectiveTolerance)return;
+
+	//方向転換を繰り返しても中心線から少しずつずれないよう、判定時にマス中央へ揃える
+	SetActorLocation(CurrentTileCenter, false);
+
+	//中央に到達してから、このマスを処理済みとして記録する
 	LastGridCoords = CurrentGridCoords;
 	bHasLastGridCoords = true;
 
@@ -155,10 +168,7 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile()
 void AAnimalBase::MoveAnimal(float DeltaTime)
 {
 	//移動方向がない、または移動速度が0以下の場合は移動しない
-	if (CurrentMoveDirection.IsNearlyZero() || MoveSpeed <= 0.0f)
-	{
-		return;
-	}
+	if (CurrentMoveDirection.IsNearlyZero() || MoveSpeed <= 0.0f)return;
 
 	//現在の移動方向、移動速度、前フレームからの経過時間を使って移動量を計算する
 	const FVector MoveDelta = CurrentMoveDirection * MoveSpeed * DeltaTime;

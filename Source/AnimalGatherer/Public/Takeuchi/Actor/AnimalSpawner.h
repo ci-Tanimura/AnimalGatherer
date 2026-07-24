@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -18,47 +18,47 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	//¶¬‚·‚é“®•¨‚ÌƒNƒ‰ƒX
+	//ç”Ÿæˆã™ã‚‹å‹•ç‰©ã®ã‚¯ãƒ©ã‚¹
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
 	TSubclassOf<APawn> AnimalClass;
 
-	//“®•¨‚ğo‚·À•W
+	//å‹•ç‰©ã‚’å‡ºã™åº§æ¨™
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
 	FVector SpawnLocation = FVector::ZeroVector;
 
-	//“®•¨‚ğo‚·Œü‚«
+	//å‹•ç‰©ã‚’å‡ºã™å‘ã
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
 	FRotator SpawnRotation = FRotator::ZeroRotator;
 
-	//¶¬‚µ‚½“®•¨‚Éİ’è‚·‚éƒ}ƒbƒv
+	//ç”Ÿæˆã—ãŸå‹•ç‰©ã«è¨­å®šã™ã‚‹ãƒãƒƒãƒ—
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map")
 	TObjectPtr<AActor> MapActor;
 
-	//‰½•b‚²‚Æ‚É¶¬‚·‚é‚©
+	//ä½•ç§’ã”ã¨ã«ç”Ÿæˆã™ã‚‹ã‹
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner", meta = (ClampMin = "0.1", UIMin = "0.1"))
 	float SpawnInterval = 3.0f;
 
-	//ƒXƒe[ƒW‚É‘¶İ‚Å‚«‚é“®•¨‚Ì”§ŒÀ
+	//ã‚¹ãƒ†ãƒ¼ã‚¸ã«å­˜åœ¨ã§ãã‚‹å‹•ç‰©ã®æ•°åˆ¶é™
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner", meta = (ClampMin = "1", UIMin = "1"))
 	int32 MaxAnimalCount = 5;
 
-	//ƒQ[ƒ€ŠJn‚ÉƒXƒ|[ƒ“‚ğn‚ß‚é‚©‚Ç‚¤‚©
+	//ã‚²ãƒ¼ãƒ é–‹å§‹æ™‚ã«ã‚¹ãƒãƒ¼ãƒ³ã‚’å§‹ã‚ã‚‹ã‹ã©ã†ã‹
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
 	bool bStartSpawningOnBeginPlay = true;
 
-	//ƒXƒ|[ƒ“ˆ—‚ğŠJn‚·‚éŠÖ”
+	//ã‚¹ãƒãƒ¼ãƒ³å‡¦ç†ã‚’é–‹å§‹ã™ã‚‹é–¢æ•°
 	UFUNCTION(BlueprintCallable, Category = "Animal Spawner")
 	void StartSpawning();
 
-	//ƒXƒ|[ƒ“ˆ—‚ğ’â~‚·‚éŠÖ”
+	//ã‚¹ãƒãƒ¼ãƒ³å‡¦ç†ã‚’åœæ­¢ã™ã‚‹é–¢æ•°
 	UFUNCTION(BlueprintCallable, Category = "Animal Spawner")
 	void StopSpawning();
 
-	//“®•¨‚ğ¶¬‚·‚éŠÖ”
+	//å‹•ç‰©ã‚’ç”Ÿæˆã™ã‚‹é–¢æ•°
 	UFUNCTION(BlueprintCallable, Category = "Animal Spawner")
 	APawn* SpawnAnimal();
 
-	//Œ»İ¶‚«‚Ä‚¢‚é“®•¨‚Ì”‚ğ•Ô‚·
+	//ç¾åœ¨ç”Ÿãã¦ã„ã‚‹å‹•ç‰©ã®æ•°ã‚’è¿”ã™
 	UFUNCTION(BlueprintPure, Category = "Animal Spawner")
 	int32 GetSpawnedAnimalCount() const;
 

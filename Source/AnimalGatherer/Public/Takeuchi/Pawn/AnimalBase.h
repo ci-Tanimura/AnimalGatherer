@@ -61,9 +61,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Animal Map")
 	void SetMapActor(AActor* NewMapActor);
 
+	//タイル中心からこの距離以内に入ったら方向を取得する
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map",meta = (ClampMin = "0.1", UIMin = "0.1"))
+	float DirectionReadTolerance = 10.0f;
+
 protected:
 	//足元のマスを読み取り、移動方向を変更するための入口
-	virtual void UpdateMoveDirectionFromCurrentTile();
+	virtual void UpdateMoveDirectionFromCurrentTile(float DeltaTime);
 
 	//現在の方向へ移動する
 	void MoveAnimal(float DeltaTime);
