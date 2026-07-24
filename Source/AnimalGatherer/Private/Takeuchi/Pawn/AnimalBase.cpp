@@ -1,7 +1,9 @@
 ﻿#include "Takeuchi/Pawn/AnimalBase.h"
 
 #include "Components/SceneComponent.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Lee/MapManager.h"
 #include "Tanimura/GridInteractInterface.h"
 #include "Tanimura/MainGameMode.h"
 
@@ -17,6 +19,16 @@ AAnimalBase::AAnimalBase()
 void AAnimalBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//マップ参照が未設定の場合は、レベル上のMapManagerを自動取得する
+	if (!MapActor)
+	{
+		for (TActorIterator<AMapManager> It(GetWorld()); It; ++It)
+		{
+			SetMapActor(*It);
+			break;
+		}
+	}
 
 	SetMoveDirection(InitialMoveDirection);
 

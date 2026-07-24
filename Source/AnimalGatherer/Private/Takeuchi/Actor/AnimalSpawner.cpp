@@ -1,6 +1,8 @@
 #include "Takeuchi/Actor/AnimalSpawner.h"
 
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
+#include "Lee/MapManager.h"
 #include "Takeuchi/Pawn/AnimalBase.h"
 #include "TimerManager.h"
 
@@ -12,6 +14,17 @@ AAnimalSpawner::AAnimalSpawner()
 void AAnimalSpawner::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//マップ参照が未設定の場合は、レベル上のMapManagerを自動取得する
+	if (!MapActor)
+	{
+		MapActor = UGameplayStatics::GetActorOfClass(GetWorld(), AMapManager::StaticClass());
+	}
+
+	if (!MapActor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AnimalSpawner: MapActor is not set."));
+	}
 
 	//設定が有効ならゲーム開始時に自動で生成を始める
 	if (bStartSpawningOnBeginPlay)
@@ -29,6 +42,12 @@ void AAnimalSpawner::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AAnimalSpawner::StartSpawning()
 {
 	if (!GetWorld())
+	{
+		return;
+	}
+
+	//すでに生成タイマーが動いている場合は、開始処理を重複させない
+	if (GetWorldTimerManager().IsTimerActive(SpawnTimerHandle))
 	{
 		return;
 	}
@@ -74,7 +93,11 @@ APawn* AAnimalSpawner::SpawnAnimal()
 	{
 		if (AAnimalBase* AnimalBase = Cast<AAnimalBase>(SpawnedAnimal))
 		{
-			AnimalBase->SetMapActor(MapActor);
+			//AnimalBaseが自動取得した参照をnullptrで上書きしない
+			if (MapActor)
+			{
+				AnimalBase->SetMapActor(MapActor);
+			}
 		}
 
 		//最大数を管理するため、生成した動物を記録する
