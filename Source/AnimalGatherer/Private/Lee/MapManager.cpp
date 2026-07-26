@@ -146,15 +146,19 @@ void AMapManager::RefreshStateVisual(ETileType StateType)
 		// 矢印方向に応じた回転を設定（初期メッシュは上向きを想定）
 		FRotator TileRot = FRotator::ZeroRotator;
 
-		if (StateType == ETileType::DirDown)
+		if (StateType == ETileType::DirUp)
 		{
 			TileRot.Yaw = 180.0f;
 		}
-		else if (StateType == ETileType::DirRight)
+		else if (StateType == ETileType::DirDown)
+		{
+			TileRot.Yaw = 0.0f;
+		}
+		else if (StateType == ETileType::DirLeft)
 		{
 			TileRot.Yaw = 90.0f;
 		}
-		else if (StateType == ETileType::DirLeft)
+		else if (StateType == ETileType::DirRight)
 		{
 			TileRot.Yaw = -90.0f;
 		}
