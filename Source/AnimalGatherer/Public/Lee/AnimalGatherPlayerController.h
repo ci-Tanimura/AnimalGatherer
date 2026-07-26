@@ -59,6 +59,26 @@ public:
 	UInputMappingContext* IMC_P2 = nullptr;
 
 	//==============================================================================
+	// 固定カメラ設定
+	//==============================================================================
+
+	/** @brief 固定カメラを使うか。true なら Pawn の視点でなく指定座標の固定カメラになる。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Control")
+	bool bUseFixedCamera = false;
+
+	/** @brief 固定カメラのワールド座標。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Control")
+	FVector FixedCameraLocation = FVector::ZeroVector;
+
+	/** @brief 固定カメラの回転。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Control")
+	FRotator FixedCameraRotation = FRotator(-90.f, 0.f, 0.f);
+
+	/** @brief 正交投影時の視野幅（ワールド単位）。OrthoWidth が大きいほど広範囲が見える。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Control")
+	float FixedCameraOrthoWidth = 2048.f;
+
+	//==============================================================================
 	// 公開メソッド
 	//==============================================================================
 
@@ -74,12 +94,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "References")
 	void SetMapManager(AMapManager* InMapManager) { MapManagerRef = InMapManager; }
 
+	/**
+	 * @brief 指定 Tag を持つ CameraActor に視点を切り替える。
+	 * @param CameraTag 対象カメラの Actor Tag。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Camera Control")
+	void SetViewToTaggedCamera(FName CameraTag);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void SetPlayer(UPlayer* InPlayer) override;
 
 private:
+	/** @brief 固定カメラの Actor をスポーンして SetViewTarget。 */
+	void ApplyFixedCamera();
+
 	//==============================================================================
 	// 入力ハンドラ
 	//==============================================================================

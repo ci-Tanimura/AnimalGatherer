@@ -6,16 +6,87 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
 
 AAnimalGatherPlayerController::AAnimalGatherPlayerController()
 {
 }
 
-/**
- * @brief ゲーム開始時。MapManager を検索し、このプレイヤーの Input Mapping Context を登録する。
- */
+void AAnimalGatherPlayerController::SetViewToTaggedCamera(FName CameraTag)
+{
+	if (CameraTag.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetViewToTaggedCamera: NO Tag！"));
+		return;
+	}
+
+	TArray<AActor*> FoundCameras;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), CameraTag, FoundCameras);
+
+	if (FoundCameras.Num() > 0)
+	{
+		AActor* TargetCamera = FoundCameras[0];
+		if (TargetCamera)
+		{
+			SetViewTarget(TargetCamera);
+			UE_LOG(LogTemp, Log, TEXT("SetViewToTaggedCamera: switched to %s"), *TargetCamera->GetName());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetViewToTaggedCamera: cannot find Tag [%s]！"), *CameraTag.ToString());
+	}
+}
+
+void AAnimalGatherPlayerController::ApplyFixedCamera()
+{
+	FVector CameraLocation = FixedCameraLocation;
+
+	// MapManager が見つかればマップ中央に自動配置（Z は手動設定値を維持）
+	if (MapManagerRef)
+	{
+		const FVector MapOrigin = MapManagerRef->GetActorLocation();
+		const float TileSz = MapManagerRef->TileSize;
+		const float CenterX = (MapManagerRef->MapWidth - 1) * TileSz * 0.5f;
+		const float CenterY = (MapManagerRef->MapHeight - 1) * TileSz * 0.5f;
+
+		CameraLocation.X = MapOrigin.X + CenterX;
+		CameraLocation.Y = MapOrigin.Y + CenterY;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(
+		ACameraActor::StaticClass(),
+		CameraLocation,
+		FixedCameraRotation,
+		SpawnParams);
+
+	if (Cam)
+	{
+		// 正交投影に設定（平行透视、歪みなし）
+		UCameraComponent* CamComp = Cam->GetCameraComponent();
+		if (CamComp)
+		{
+			CamComp->SetProjectionMode(ECameraProjectionMode::Orthographic);
+			CamComp->SetOrthoWidth(FixedCameraOrthoWidth);
+		}
+
+		SetViewTarget(Cam);
+		UE_LOG(LogTemp, Log, TEXT("ApplyFixedCamera: spawned camera at %s"), *CameraLocation.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ApplyFixedCamera: failed to spawn camera"));
+	}
+}
+
 void AAnimalGatherPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -35,14 +106,13 @@ void AAnimalGatherPlayerController::BeginPlay()
 		}
 	}
 
-	// IMC の登録は SetPlayer() で行う（Player が確実に設定された後に実行）
+	// 固定カメラ
+	if (bUseFixedCamera)
+	{
+		ApplyFixedCamera();
+	}
 }
 
-/**
- * @brief Player が関連付けられた後に呼ばれる。
- *        ここで ControllerId に応じた IMC を登録する。
- *        (動的に生成された P2 では BeginPlay 時点で Player が未設定のため）
- */
 void AAnimalGatherPlayerController::SetPlayer(UPlayer* InPlayer)
 {
 	Super::SetPlayer(InPlayer);
@@ -67,10 +137,6 @@ void AAnimalGatherPlayerController::SetPlayer(UPlayer* InPlayer)
 	}
 }
 
-/**
- * @brief Enhanced Input アクションのバインド。
- *        移動は Started で1マス移動、配置は各方向のアクションに個別バインド。
- */
 void AAnimalGatherPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
@@ -78,8 +144,6 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent);
 	if (!EIC)
 	{
-		// 動的生成された P2 では InputComponent が UEnhancedInputComponent に
-		// 自動アップグレードされない場合があるため、手動で再作成する
 		UE_LOG(LogTemp, Warning, TEXT("AnimalGatherPC: InputComponent が Enhanced ではない (%s) → 再作成します"),
 			InputComponent ? *InputComponent->GetClass()->GetName() : TEXT("null"));
 
@@ -101,13 +165,11 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 	UE_LOG(LogTemp, Log, TEXT("AnimalGatherPC: SetupInputComponent → InputComponent=%s, PlayerID will be set by pawn"),
 		*EIC->GetName());
 
-	// カーソル移動（Axis2D → 支配的な軸方向に1マス移動）
 	if (IA_MoveCursor)
 	{
 		EIC->BindAction(IA_MoveCursor, ETriggerEvent::Started, this, &AAnimalGatherPlayerController::OnMoveStarted);
 	}
 
-	// 方向矢印の配置（各方向個別の Digital アクション）
 	if (IA_Set_Up)
 	{
 		EIC->BindAction(IA_Set_Up, ETriggerEvent::Started, this, &AAnimalGatherPlayerController::OnPlaceUp);
@@ -130,10 +192,6 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 // 入力ハンドラ
 //==============================================================================
 
-/**
- * @brief カーソル移動入力ハンドラ。
- *        2D 軸入力から支配的な軸方向を判定し、その方向に1マス移動する。
- */
 void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value)
 {
 	ACursorPawn* CursorPawn = GetCursorPawn();
@@ -144,11 +202,8 @@ void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value
 
 	const FVector2D Input = Value.Get<FVector2D>();
 
-	// 支配的な軸を選択（斜め入力を防止）
-	// 注：カメラ俯視により MapManager の X 軸と画面左右が逆。DeltaX を反転して補正。
 	if (FMath::Abs(Input.X) >= FMath::Abs(Input.Y))
 	{
-		// X 軸優先（左右）
 		const int32 Delta = Input.X > 0.0f ? -1 : (Input.X < 0.0f ? 1 : 0);
 		if (Delta != 0)
 		{
@@ -157,7 +212,6 @@ void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value
 	}
 	else
 	{
-		// Y 軸優先（上下）
 		const int32 Delta = Input.Y > 0.0f ? 1 : (Input.Y < 0.0f ? -1 : 0);
 		if (Delta != 0)
 		{
@@ -190,10 +244,6 @@ void AAnimalGatherPlayerController::OnPlaceRight(const FInputActionValue& Value)
 // 公開メソッド
 //==============================================================================
 
-/**
- * @brief 現在カーソルが位置するタイルに指定方向の矢印を配置する。
- *        Spawn / Goal タイルは上書きしない。
- */
 void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 {
 	ACursorPawn* CursorPawn = GetCursorPawn();
@@ -209,7 +259,6 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		return;
 	}
 
-	// Spawn / Goal タイルの保護（必要に応じてコメントアウトで許可）
 	const FIntPoint TargetCoords(CursorPawn->GridX, CursorPawn->GridY);
 	const ETileType CurrentTile = MapManagerRef->GetCellState_Implementation(TargetCoords);
 
@@ -221,7 +270,6 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		return;
 	}
 
-	// 3手制限：4手目以降は最古の配置を Empty に戻す
 	static constexpr int32 MaxHistory = 3;
 	if (PlaceHistory.Num() >= MaxHistory)
 	{
