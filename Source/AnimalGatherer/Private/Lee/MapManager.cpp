@@ -3,11 +3,6 @@
 
 #include "Lee/MapManager.h"
 
-/**
- * @brief デフォルトコンストラクタ。
- *        Tick を無効化し、ベースフロア用 HISM と7状態分の HISM レイヤーを生成する。
- *        各レイヤーは RootComponent にアタッチされ、StateVisuals に格納される。
- */
 AMapManager::AMapManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -29,24 +24,14 @@ AMapManager::AMapManager()
 	}
 }
 
-/**
- * @brief ゲーム開始時またはスポーン時に呼ばれる。
- *        現状は基底クラスへの委譲のみ。必要に応じて拡張可能。
- */
 void AMapManager::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
-/**
- * @brief IGridInteractInterface の実装。指定グリッド座標のタイル状態を返す。
- * インデックス = Y * MapWidth + X で GridData を線形アクセスする。
- * BlueprintNativeEvent のため、関数名の後ろに _Implementationが必要。
- * @param GridCoords グリッド座標（X: 列, Y: 行）。
- * @return 該当タイルの ETileType。範囲外の場合は Empty を返す。
- */
 ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 {
+	// インデックス = Y * MapWidth + X で GridData を線形アクセス
 	const int32 Index = GridCoords.Y * MapWidth + GridCoords.X;
 
 	if (GridData.IsValidIndex(Index))
@@ -60,13 +45,6 @@ ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 	return ETileType::Empty;
 }
 
-/**
- * @brief 指定グリッド座標のタイルデータを実行時に変更する。
- *        範囲チェック後、GridData を更新しビジュアルも即時反映する。
- * @param GridX グリッドX座標（列）。
- * @param GridY グリッドY座標（行）。
- * @param NewType 設定する新しいタイル種類。
- */
 void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
 {
 	if (GridX < 0 || GridX >= MapWidth || GridY < 0 || GridY >= MapHeight)
@@ -99,13 +77,6 @@ void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
 	}
 }
 
-/**
- * @brief 全タイルのビジュアルを最新状態に更新する。
- *        全 StateVisuals をクリア後、GridData を走査し、Empty 以外のタイルに対応する
- *        HISM レイヤーへインスタンスを追加する。
- *        矢印タイルは方向に応じて Yaw 回転を適用する。
- *        Zオフセットはタイル種別ごとに微小差をつけ、z-fighting を防止する。
- */
 void AMapManager::UpdateMapVisuals()
 {
 	for (auto& Pair : StateVisuals)
@@ -138,12 +109,14 @@ void AMapManager::RefreshStateVisual(ETileType StateType)
 
 		const int32 X = i % MapWidth;
 		const int32 Y = i / MapWidth;
+
+		// Z オフセットは StateType の数値に比例（z-fighting 防止）
 		const float ZOffset = static_cast<uint8>(StateType) * 0.1f;
 
 		FTransform InstanceTransform;
 		InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, ZOffset));
 
-		// 矢印方向に応じた回転を設定（初期メッシュは上向きを想定）
+		// 矢印方向に応じた回転を設定（初期メッシュは上向き想定）
 		FRotator TileRot = FRotator::ZeroRotator;
 
 		if (StateType == ETileType::DirUp)
@@ -173,11 +146,6 @@ void AMapManager::RefreshStateVisual(ETileType StateType)
 	}
 }
 
-/**
- * @brief エディタ上での配置・プロパティ変更時に自動実行される構築処理。
- *        GridData のサイズが MapWidth×MapHeight と不一致なら全再生成、
- *        一致すればビジュアルのみを更新する。
- */
 void AMapManager::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
@@ -192,12 +160,6 @@ void AMapManager::OnConstruction(const FTransform& Transform)
 	}
 }
 
-/**
- * @brief エディタの Level Design Tools で指定されたタイルの種類を変更する。
- *        座標が範囲内なら GridData を更新し即座にビジュアルへ反映する。
- *        範囲外の場合は警告ログを出力する。
- *        Modify() を呼び、エディタの Undo/Redo に対応する。
- */
 void AMapManager::ApplyTileEdit()
 {
 	if (Edit_X >= 0 && Edit_X < MapWidth && Edit_Y >= 0 && Edit_Y < MapHeight)
@@ -219,12 +181,6 @@ void AMapManager::ApplyTileEdit()
 }
 
 #if WITH_EDITOR
-/**
- * @brief エディタのプロパティ変更を検知し、適切な後処理を実行する。
- *        MapWidth/MapHeight/TileSize 変更時は全マップを再生成する。
- *        Edit_X/Edit_Y/Edit_TileType 変更時は ApplyTileEdit() を自動呼び出しする。
- * @param PropertyChangedEvent 変更されたプロパティ情報。
- */
 void AMapManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -247,10 +203,6 @@ void AMapManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 }
 #endif
 
-/**
- * @brief 全マップをクリアし、現在の MapWidth×MapHeight で空グリッドを再生成する。
- *        GridData を初期化し、ベースフロアの HISM インスタンスも再配置する。
- */
 void AMapManager::ResetAndGenerateBlankMap()
 {
 	GridData.Empty();

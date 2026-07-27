@@ -70,7 +70,7 @@ void AAnimalGatherPlayerController::ApplyFixedCamera()
 
 	if (Cam)
 	{
-		// 正交投影に設定（平行透视、歪みなし）
+		// 正交投影に設定（平行投影、歪みなし）
 		UCameraComponent* CamComp = Cam->GetCameraComponent();
 		if (CamComp)
 		{
@@ -202,6 +202,7 @@ void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value
 
 	const FVector2D Input = Value.Get<FVector2D>();
 
+	// X 軸: 正 → GridX-1（左）、負 → GridX+1（右）
 	if (FMath::Abs(Input.X) >= FMath::Abs(Input.Y))
 	{
 		const int32 Delta = Input.X > 0.0f ? -1 : (Input.X < 0.0f ? 1 : 0);
@@ -212,6 +213,7 @@ void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value
 	}
 	else
 	{
+		// Y 軸: 正 → GridY+1（上）、負 → GridY-1（下）
 		const int32 Delta = Input.Y > 0.0f ? 1 : (Input.Y < 0.0f ? -1 : 0);
 		if (Delta != 0)
 		{
@@ -262,6 +264,7 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	const FIntPoint TargetCoords(CursorPawn->GridX, CursorPawn->GridY);
 	const ETileType CurrentTile = MapManagerRef->GetCellState_Implementation(TargetCoords);
 
+	// 特殊タイル（Spawn / GoalP1 / GoalP2）は上書き不可
 	if (CurrentTile == ETileType::Spawn ||
 		CurrentTile == ETileType::GoalP1 ||
 		CurrentTile == ETileType::GoalP2)
@@ -270,6 +273,15 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		return;
 	}
 
+	// ボーダータイルには配置不可
+	if (MapManagerRef->IsBorderTile(TargetCoords.X, TargetCoords.Y))
+	{
+		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: ボーダータイル (%d, %d) には配置できません"),
+			TargetCoords.X, TargetCoords.Y);
+		return;
+	}
+
+	// 配置履歴は最大3件（FIFO）、4件目で最古の矢印が Empty に戻る
 	static constexpr int32 MaxHistory = 3;
 	if (PlaceHistory.Num() >= MaxHistory)
 	{

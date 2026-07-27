@@ -105,6 +105,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Map")
 	void SetTileData(int32 GridX, int32 GridY, ETileType NewType);
 
+	/**
+	 * @brief 指定座標がマップ外周のボーダータイルかを判定する。
+	 *        外周 1 マス: X==0, Y==0, X==MapWidth-1, Y==MapHeight-1。
+	 *        範囲外座標は false を返す。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Map")
+	bool IsBorderTile(int32 X, int32 Y) const
+	{
+		return X >= 0 && X < MapWidth && Y >= 0 && Y < MapHeight
+			&& (X == 0 || Y == 0 || X == MapWidth - 1 || Y == MapHeight - 1);
+	}
+
 	//==============================================================================
 	// IGridInteractInterface 実装
 	//==============================================================================
