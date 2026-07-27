@@ -79,8 +79,23 @@ void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
 	const int32 Index = GridY * MapWidth + GridX;
 	if (GridData.IsValidIndex(Index))
 	{
+		const ETileType OldType = GridData[Index].TileType;
+		if (OldType == NewType)
+		{
+			return;
+		}
+
 		GridData[Index].TileType = NewType;
-		UpdateMapVisuals();
+
+		// 変更のあったレイヤーのみ再構築（全レイヤー再構築によるちらつき防止）
+		if (OldType != ETileType::Empty)
+		{
+			RefreshStateVisual(OldType);
+		}
+		if (NewType != ETileType::Empty)
+		{
+			RefreshStateVisual(NewType);
+		}
 	}
 }
 
@@ -93,51 +108,68 @@ void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
  */
 void AMapManager::UpdateMapVisuals()
 {
-	// 全 StateVisuals レイヤーをクリア
 	for (auto& Pair : StateVisuals)
 	{
-		Pair.Value->ClearInstances();
-		Pair.Value->SetRelativeLocation(FVector::ZeroVector);
+		RefreshStateVisual(Pair.Key);
+	}
+}
+
+void AMapManager::RefreshStateVisual(ETileType StateType)
+{
+	UHierarchicalInstancedStaticMeshComponent** TargetHISM = StateVisuals.Find(StateType);
+	if (!TargetHISM)
+	{
+		return;
 	}
 
-	// GridData を走査してメッシュを配置
+	(*TargetHISM)->ClearInstances();
+	(*TargetHISM)->SetRelativeLocation(FVector::ZeroVector);
+
+	// GridData を走査して該当 StateType のタイルのみ収集
+	TArray<FTransform> Transforms;
 	for (int32 i = 0; i < GridData.Num(); ++i)
 	{
 		const FMapTileData& Tile = GridData[i];
 
-		if (Tile.TileType != ETileType::Empty)
+		if (Tile.TileType != StateType)
 		{
-			if (UHierarchicalInstancedStaticMeshComponent** TargetHISM = StateVisuals.Find(Tile.TileType))
-			{
-				FTransform InstanceTransform;
-
-				// グリッド座標からローカル位置を計算
-				// WorldLocation は使わず、自身の座標からの相対位置で設定する
-				const int32 X = i % MapWidth;
-				const int32 Y = i / MapWidth;
-				const float ZOffset = static_cast<uint8>(Tile.TileType) * 0.1f;
-				InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, ZOffset));
-
-				// 矢印方向に応じた回転を設定（初期メッシュは上向きを想定）
-				FRotator TileRot = FRotator::ZeroRotator;
-
-				if (Tile.TileType == ETileType::DirDown)
-				{
-					TileRot.Yaw = 180.0f;
-				}
-				else if (Tile.TileType == ETileType::DirRight)
-				{
-					TileRot.Yaw = 90.0f;
-				}
-				else if (Tile.TileType == ETileType::DirLeft)
-				{
-					TileRot.Yaw = -90.0f;
-				}
-
-				InstanceTransform.SetRotation(TileRot.Quaternion());
-				(*TargetHISM)->AddInstance(InstanceTransform);
-			}
+			continue;
 		}
+
+		const int32 X = i % MapWidth;
+		const int32 Y = i / MapWidth;
+		const float ZOffset = static_cast<uint8>(StateType) * 0.1f;
+
+		FTransform InstanceTransform;
+		InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, ZOffset));
+
+		// 矢印方向に応じた回転を設定（初期メッシュは上向きを想定）
+		FRotator TileRot = FRotator::ZeroRotator;
+
+		if (StateType == ETileType::DirUp)
+		{
+			TileRot.Yaw = 180.0f;
+		}
+		else if (StateType == ETileType::DirDown)
+		{
+			TileRot.Yaw = 0.0f;
+		}
+		else if (StateType == ETileType::DirLeft)
+		{
+			TileRot.Yaw = 90.0f;
+		}
+		else if (StateType == ETileType::DirRight)
+		{
+			TileRot.Yaw = -90.0f;
+		}
+
+		InstanceTransform.SetRotation(TileRot.Quaternion());
+		Transforms.Add(InstanceTransform);
+	}
+
+	if (Transforms.Num() > 0)
+	{
+		(*TargetHISM)->AddInstances(Transforms, false, false);
 	}
 }
 

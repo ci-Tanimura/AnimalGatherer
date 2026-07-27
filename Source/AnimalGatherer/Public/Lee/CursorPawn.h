@@ -47,13 +47,11 @@ public:
 	// プレイヤー識別
 	//==============================================================================
 
-	/** @brief プレイヤーID（1 = 1P, 2 = 2P）。 */
+	/** @brief プレイヤーID（0 = 1P, 1 = 2P）。
+	 *        @see AMainGameMode::AddScore の PlayerID と統一。
+	 */
 	UPROPERTY(BlueprintReadWrite, Category = "Cursor|Identity")
-	int32 PlayerID = 1;
-
-	/** @brief 最後に移動した方向。配置時のデフォルト方向として使用される。 */
-	UPROPERTY(BlueprintReadOnly, Category = "Cursor|Identity")
-	ETileType CurrentDirection = ETileType::DirUp;
+	int32 PlayerID = 0;
 
 	//==============================================================================
 	// 公開メソッド
@@ -72,7 +70,6 @@ public:
 	/**
 	 * @brief カーソルを指定方向に1マス移動する。
 	 *        境界外の場合は移動しない。
-	 *        移動後、CurrentDirection が更新される。
 	 * @param DeltaX X方向の変化量（-1, 0, 1）。
 	 * @param DeltaY Y方向の変化量（-1, 0, 1）。
 	 */
