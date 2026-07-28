@@ -30,7 +30,18 @@ void AAnimalBase::BeginPlay()
 		}
 	}
 
-	SetMoveDirection(InitialMoveDirection);
+	//動物を生成するたびに、上下左右の4方向から初期移動方向をランダムに選ぶ
+	static const FVector InitialMoveDirections[] =
+	{
+		FVector(1.0f, 0.0f, 0.0f),
+		FVector(-1.0f, 0.0f, 0.0f),
+		FVector(0.0f, 1.0f, 0.0f),
+		FVector(0.0f, -1.0f, 0.0f)
+	};
+
+	const int32 RandomDirectionIndex =
+		FMath::RandRange(0, UE_ARRAY_COUNT(InitialMoveDirections) - 1);
+	SetMoveDirection(InitialMoveDirections[RandomDirectionIndex]);
 
 	if (!MapActor)
 	{
