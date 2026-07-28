@@ -142,11 +142,11 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 		break;
 
 	case ETileType::DirLeft:
-		SetMoveDirection(FVector(-1.0f, 0.0f, 0.0f));
+		SetMoveDirection(FVector(1.0f, 0.0f, 0.0f));
 		break;
 
 	case ETileType::DirRight:
-		SetMoveDirection(FVector(1.0f, 0.0f, 0.0f));
+		SetMoveDirection(FVector(-1.0f, 0.0f, 0.0f));
 		break;
 
 	case ETileType::GoalP1:
@@ -155,9 +155,9 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
 		{
 			GameMode->AddScore(0, 1);
-			Destroy();
 		}
-		break;
+		Destroy();
+		return;
 	}
 
 	case ETileType::GoalP2:
@@ -166,9 +166,9 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
 		{
 			GameMode->AddScore(1, 1);
-			Destroy();
 		}
-		break;
+		Destroy();
+		return;
 	}
 
 	default:
