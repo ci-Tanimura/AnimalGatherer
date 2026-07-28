@@ -4,11 +4,6 @@
 #include "Lee/MapManager.h"
 #include "Components/StaticMeshComponent.h"
 
-/**
- * @brief デフォルトコンストラクタ。
- *        CursorMesh を RootComponent として生成し、コリジョンを無効化。
- *        Tick は不要のため無効。
- */
 ACursorPawn::ACursorPawn()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -25,9 +20,6 @@ void ACursorPawn::BeginPlay()
 	Super::BeginPlay();
 }
 
-/**
- * @brief カーソル初期化。マップ参照を保持し、指定位置へスナップする。
- */
 void ACursorPawn::InitCursor(AMapManager* InMapManager, int32 InPlayerID, int32 StartGridX, int32 StartGridY)
 {
 	MapManagerRef = InMapManager;
@@ -38,9 +30,6 @@ void ACursorPawn::InitCursor(AMapManager* InMapManager, int32 InPlayerID, int32 
 	SnapToGrid(GridX, GridY);
 }
 
-/**
- * @brief カーソル移動。境界チェック → 座標更新 → スナップ。
- */
 void ACursorPawn::MoveCursor(int32 DeltaX, int32 DeltaY)
 {
 	if (!MapManagerRef)
@@ -63,10 +52,6 @@ void ACursorPawn::MoveCursor(int32 DeltaX, int32 DeltaY)
 	SnapToGrid(GridX, GridY);
 }
 
-/**
- * @brief グリッド座標からワールド座標を計算し、カーソル位置を格子中心に合わせる。
- *        Z方向にオフセットを加えてタイル上に浮かせる。
- */
 void ACursorPawn::SnapToGrid(int32 X, int32 Y)
 {
 	if (!MapManagerRef)
@@ -88,9 +73,6 @@ void ACursorPawn::SnapToGrid(int32 X, int32 Y)
 	SetActorLocation(NewLocation);
 }
 
-/**
- * @brief 指定座標がマップ範囲内 (0 <= X < MapWidth, 0 <= Y < MapHeight) かを返す。
- */
 bool ACursorPawn::IsWithinBounds(int32 X, int32 Y) const
 {
 	if (!MapManagerRef)
