@@ -168,6 +168,8 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 	if (IA_MoveCursor)
 	{
 		EIC->BindAction(IA_MoveCursor, ETriggerEvent::Started, this, &AAnimalGatherPlayerController::OnMoveStarted);
+		EIC->BindAction(IA_MoveCursor, ETriggerEvent::Triggered, this, &AAnimalGatherPlayerController::OnMoveTriggered);
+		EIC->BindAction(IA_MoveCursor, ETriggerEvent::Completed, this, &AAnimalGatherPlayerController::OnMoveCompleted);
 	}
 
 	if (IA_Set_Up)
@@ -194,13 +196,42 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 
 void AAnimalGatherPlayerController::OnMoveStarted(const FInputActionValue& Value)
 {
+	// 初回押下：入力を記録→移動→自動リピートタイマー開始
+	HeldInputValue = Value.Get<FVector2D>();
+	PerformMoveInDirection(HeldInputValue);
+
+	GetWorldTimerManager().SetTimer(AutoRepeatHandle, this, &AAnimalGatherPlayerController::OnAutoRepeatMove,
+		AutoRepeatRate, true, AutoRepeatDelay);
+}
+
+void AAnimalGatherPlayerController::OnMoveTriggered(const FInputActionValue& Value)
+{
+	// 長押し中の方向変更に対応するため入力値を更新
+	HeldInputValue = Value.Get<FVector2D>();
+}
+
+void AAnimalGatherPlayerController::OnMoveCompleted(const FInputActionValue& Value)
+{
+	// キーを離したらリピート停止
+	HeldInputValue = FVector2D::ZeroVector;
+	GetWorldTimerManager().ClearTimer(AutoRepeatHandle);
+}
+
+void AAnimalGatherPlayerController::OnAutoRepeatMove()
+{
+	if (!HeldInputValue.IsZero())
+	{
+		PerformMoveInDirection(HeldInputValue);
+	}
+}
+
+void AAnimalGatherPlayerController::PerformMoveInDirection(const FVector2D& Input)
+{
 	ACursorPawn* CursorPawn = GetCursorPawn();
 	if (!CursorPawn)
 	{
 		return;
 	}
-
-	const FVector2D Input = Value.Get<FVector2D>();
 
 	// X 軸: 正 → GridX-1（左）、負 → GridX+1（右）
 	if (FMath::Abs(Input.X) >= FMath::Abs(Input.Y))
