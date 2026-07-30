@@ -33,6 +33,37 @@ void AGridTileManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
+    // 時間経過による難易度上昇ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+
+    // 敵の移動周期を減少させ、移動スピードをあげる
+    if (EnemyParameters.MoveInterval > EnemyParameters.MinMoveInterval) {
+        EnemyParameters.MoveInterval -= EnemyParameters.MoveIntervalDecreaseRate * DeltaTime;
+        EnemyParameters.MoveInterval = FMath::Max(EnemyParameters.MoveInterval, EnemyParameters.MinMoveInterval);
+    }
+
+    // 敵生成周期を減少させ、出現頻度をあげる
+    if (EnemyParameters.SpawnInterval > EnemyParameters.MinSpawnInterval) {
+        EnemyParameters.SpawnInterval -= EnemyParameters.SpawnIntervalDecreaseRate * DeltaTime;
+        EnemyParameters.SpawnInterval = FMath::Max(EnemyParameters.SpawnInterval, EnemyParameters.MinSpawnInterval);
+
+        // 変化した SpawnInterval を動的にタイマーへ再反映
+        if (GetWorld() && SpawnTimerHandle.IsValid()) {
+            float Elapsed = GetWorld()->GetTimerManager().GetTimerElapsed(SpawnTimerHandle);
+            float Remaining = EnemyParameters.SpawnInterval - Elapsed;
+
+            if (Remaining <= 0.0f) {
+                SpawnEnemy();
+                GetWorld()->GetTimerManager().SetTimer(
+                    SpawnTimerHandle,
+                    this,
+                    &AGridTileManager::SpawnEnemy,
+                    EnemyParameters.SpawnInterval,
+                    true
+                );
+            }
+        }
+    }
+
     UpdateEnemies(DeltaTime);
 }
 
@@ -279,7 +310,7 @@ EGridDirection8 AGridTileManager::GetReflectedDirection(int32 CurrentX, int32 Cu
     return EGridDirection8::None;
 }
 
-void AGridTileManager::SetTileStateAt(int32 X, int32 Y, ETileState NewState)
+void AGridTileManager::SetTileStateAt(int32 X, int32 Y, ETileState NewState, EGridDirection8 Direction)
 {
     if (!IsValidCoordinate(X, Y)) {
         return;
@@ -292,7 +323,7 @@ void AGridTileManager::SetTileStateAt(int32 X, int32 Y, ETileState NewState)
 
         // タイルのインスタンスが存在していれば、Actor側の状態・見た目更新関数を呼び出し
         if (AGridTile* TileActor = GridTiles[Index].TileActor) {
-            TileActor->SetTileState(NewState, EnemyParameters.MoveInterval);
+            TileActor->SetTileState(NewState, EnemyParameters.MoveInterval, Direction);
         }
     }
 }
