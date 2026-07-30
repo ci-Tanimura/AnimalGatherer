@@ -117,5 +117,5 @@ protected:
     EGridDirection8 GetReflectedDirection(int32 CurrentX, int32 CurrentY, EGridDirection8 CurrentDir) const;
 
     // 指定した (X, Y) 座標のタイルステートを安全に変更し、見た目の更新を呼び出す
-    void SetTileStateAt(int32 X, int32 Y, ETileState NewState);
+    void SetTileStateAt(int32 X, int32 Y, ETileState NewState, EGridDirection8 Direction = EGridDirection8::None);
 };

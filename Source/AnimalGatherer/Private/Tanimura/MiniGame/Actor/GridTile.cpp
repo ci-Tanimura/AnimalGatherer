@@ -31,14 +31,14 @@ void AGridTile::BeginPlay()
     }
 }
 
-void AGridTile::SetTileState(ETileState NewState, float MoveInterval)
+void AGridTile::SetTileState(ETileState NewState, float MoveInterval, EGridDirection8 Direction)
 {
     // 状態が変更された場合のみ処理を実行
     if (CurrentTileState != NewState) {
         CurrentTileState = NewState;
 
         // BP側へ通知（色を変える、アザラシを出す等）
-        OnTileStateChanged(CurrentTileState, MoveInterval);
+        OnTileStateChanged(CurrentTileState, MoveInterval, Direction);
     }
 }
 
