@@ -53,11 +53,11 @@ struct FEnemyParameters
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     float MoveInterval = 1.0f;
 
-    // 消滅するまでの最大移動ステップ数
+    // 消滅するまでの最大移動回数
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     int32 MaxTravelMoves = 10;
 
-    // 消滅間近（点滅）とみなす残りステップ数
+    // 消滅間近（点滅）とみなす残り移動回数
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     int32 ExpirationWarningMoves = 3;
 

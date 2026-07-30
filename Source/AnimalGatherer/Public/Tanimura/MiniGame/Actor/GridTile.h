@@ -27,7 +27,7 @@ public:
 
     // タイルの状態を変更し、必要に応じて見た目を更新する
     UFUNCTION(BlueprintCallable, Category = "Tile")
-    void SetTileState(ETileState NewState);
+    void SetTileState(ETileState NewState, float MoveInterval);
 
     // 現在のタイルの状態を取得する
     UFUNCTION(BlueprintPure, Category = "Tile")
@@ -40,7 +40,7 @@ protected:
 
     // 状態が変わった際に Blueprint 側でマテリアルやアザラシの表示を切替えるイベント
     UFUNCTION(BlueprintImplementableEvent, Category = "Tile|Events")
-    void OnTileStateChanged(ETileState NewState);
+    void OnTileStateChanged(ETileState NewState, float MoveInterval);
 
     // プレイヤー（ペンギン）がマスに乗った時の判定処理
     UFUNCTION()

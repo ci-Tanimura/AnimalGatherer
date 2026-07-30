@@ -48,7 +48,7 @@ void AGridTileManager::GenerateGrid()
     // メモリ再確保によるオーバーヘッドを減らすため、あらかじめ配列容量を確保
     GridTiles.Reserve(GridWidth * GridHeight);
 
-    // 二重ループにより、X方向・Y方向へ格子状にタイルを配置
+    // X方向・Y方向へ格子状にタイルを配置
     for (int32 Y = 0; Y < GridHeight; ++Y) {
         for (int32 X = 0; X < GridWidth; ++X) {
             // マネージャーの位置を原点（基準）として、TileSpacing分だけオフセットした位置を計算
@@ -292,7 +292,7 @@ void AGridTileManager::SetTileStateAt(int32 X, int32 Y, ETileState NewState)
 
         // タイルのインスタンスが存在していれば、Actor側の状態・見た目更新関数を呼び出し
         if (AGridTile* TileActor = GridTiles[Index].TileActor) {
-            TileActor->SetTileState(NewState);
+            TileActor->SetTileState(NewState, EnemyParameters.MoveInterval);
         }
     }
 }
