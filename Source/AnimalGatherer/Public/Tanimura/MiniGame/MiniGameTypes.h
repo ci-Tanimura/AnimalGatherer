@@ -53,6 +53,14 @@ struct FEnemyParameters
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     float MoveInterval = 1.0f;
 
+    // 1秒あたりに移動間隔を減少させる量
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
+    float MoveIntervalDecreaseRate = 0.005f;
+
+    // 移動間隔の最小値
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
+    float MinMoveInterval = 0.3f;
+
     // 消滅するまでの最大移動回数
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     int32 MaxTravelMoves = 10;
@@ -64,6 +72,14 @@ struct FEnemyParameters
     // 新たな敵の生成周期（秒）
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
     float SpawnInterval = 5.0f;
+
+    // 1秒あたりに生成周期を減少させる量
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
+    float SpawnIntervalDecreaseRate = 0.1f;
+
+    // 生成周期の最小値
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Parameters")
+    float MinSpawnInterval = 0.05f;
 };
 
 /**
