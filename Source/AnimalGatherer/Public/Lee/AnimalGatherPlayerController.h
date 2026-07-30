@@ -59,6 +59,18 @@ public:
 	UInputMappingContext* IMC_P2 = nullptr;
 
 	//==============================================================================
+	// カーソル自動連続移動設定
+	//==============================================================================
+
+	/** @brief 長押し時の初回リピート開始までの遅延（秒）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|AutoRepeat", meta = (ClampMin = "0.1", ClampMax = "1.0", Units = "s"))
+	float AutoRepeatDelay = 0.3f;
+
+	/** @brief リピート間隔（秒）。小さいほど早く動く。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|AutoRepeat", meta = (ClampMin = "0.05", ClampMax = "0.5", Units = "s"))
+	float AutoRepeatRate = 0.15f;
+
+	//==============================================================================
 	// 固定カメラ設定
 	//==============================================================================
 
@@ -117,6 +129,15 @@ private:
 	/** @brief IA_MoveCursor の入力処理。軸方向を読み取りカーソルを1マス移動。 */
 	void OnMoveStarted(const FInputActionValue& Value);
 
+	/** @brief IA_MoveCursor Triggered — 長押し中の方向更新。 */
+	void OnMoveTriggered(const FInputActionValue& Value);
+
+	/** @brief IA_MoveCursor Completed — 長押し解除。 */
+	void OnMoveCompleted(const FInputActionValue& Value);
+
+	/** @brief 自動リピート用タイマーコールバック。 */
+	void OnAutoRepeatMove();
+
 	/** @brief IA_Set_Up Started 時の処理。 */
 	void OnPlaceUp(const FInputActionValue& Value);
 
@@ -136,6 +157,9 @@ private:
 	/** @brief 現在 Possess 中の ACursorPawn を取得。 */
 	ACursorPawn* GetCursorPawn() const;
 
+	/** @brief 入力ベクトルからカーソルを1マス移動する（内部処理）。 */
+	void PerformMoveInDirection(const FVector2D& Input);
+
 	//==============================================================================
 	// 内部データ
 	//==============================================================================
@@ -146,4 +170,10 @@ private:
 
 	/** @brief 最近3手分の配置座標（FIFO）。4手目で最古を Empty に戻す。 */
 	TArray<FIntPoint> PlaceHistory;
+
+	/** @brief 長押し中の入力値。 */
+	FVector2D HeldInputValue;
+
+	/** @brief 自動リピート用タイマーハンドル。 */
+	FTimerHandle AutoRepeatHandle;
 };
