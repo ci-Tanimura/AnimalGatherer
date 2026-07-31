@@ -15,6 +15,8 @@ class ACursorPawn;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnScoreChangedSignature, int32, NewP1Score, int32, NewP2Score);
 // 残り時間が更新されたことを通知するデリゲート（引数：残り秒数）
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimeChangedSignature, int32, RemainingTime);
+// ゲーム開始カウントダウン進捗を通知するデリゲート（引数：残りカウントダウン秒数）
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCountdownChangedSignature, int32, RemainingCountdown);
 // タイムアップを通知するデリゲート
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTimeUpSignature);
 
@@ -55,6 +57,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
     FOnTimeUpSignature OnTimeUp;
 
+    // カウントダウン通知用イベント
+    UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
+    FOnCountdownChangedSignature OnCountdownChanged;
+
 protected:
     UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
     int32 P1Score;
@@ -82,6 +88,10 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
     float TimeUpDelay = 1.0f;
 
+    // ゲーム開始前のカウントダウン時間（秒）
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
+    float ReadyDelay = 3.0f;
+
     // 2026.07.24 Lee start
     /** @brief 1P用カーソル Pawn のブループリントクラス。 */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
@@ -100,11 +110,24 @@ private:
     // 現在の残り時間
     int32 TimeRemaining;
 
+    // 開始カウントダウン用のタイマーハンドル
+    FTimerHandle ReadyTimerHandle;
+
     // タイマーを管理するためのハンドル
     FTimerHandle GameTimerHandle;
 
     // 演出用タイマーのハンドル
     FTimerHandle ResultDelayTimerHandle;
+
+    // カウントダウン用タイマーで毎秒呼ぶ処理
+    int32 CountdownRemaining;
+    void AdvanceCountdown();
+
+    // カウントダウン終了後にゲーム本編を開始
+    void StartMatch();
+
+    // プレイヤーの入力許可/不許可を切り替え
+    void SetPlayersInputEnabled(bool bEnable);
 
     // 残り時間を減らす
     void AdvanceTimer();
