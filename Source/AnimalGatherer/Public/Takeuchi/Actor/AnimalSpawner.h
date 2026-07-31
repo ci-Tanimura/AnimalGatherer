@@ -44,7 +44,7 @@ public:
 
 	//ゲーム開始時にスポーンを始めるかどうか
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Spawner")
-	bool bStartSpawningOnBeginPlay = true;
+	bool bStartSpawningOnBeginPlay = false;
 
 	//スポーン処理を開始する関数
 	UFUNCTION(BlueprintCallable, Category = "Animal Spawner")
