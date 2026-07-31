@@ -62,9 +62,14 @@ public:
 	void SetMapActor(AActor* NewMapActor);
 
 	//タイル中心からこの距離以内に入ったら方向を取得する
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map",meta = (ClampMin = "0.1", UIMin = "0.1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map", meta = (ClampMin = "0.1", UIMin = "0.1"))
 	float DirectionReadTolerance = 10.0f;
 
+	// 2026.07.31 Gu start
+	// 動物がゴールに入った時再生する効果音
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
+	class USoundBase* GoalSound;
+	// 2026.07.31 Gu end
 protected:
 	//足元のマスを読み取り、移動方向を変更するための入口
 	virtual void UpdateMoveDirectionFromCurrentTile(float DeltaTime);
