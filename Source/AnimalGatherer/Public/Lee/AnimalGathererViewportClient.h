@@ -4,14 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameViewportClient.h"
-#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "AnimalGathererViewportClient.generated.h"
 
 /**
  * @brief ローカル2人対戦用の GameViewportClient。
- *        RemapControllerInput をオーバーライドしてゲームパッドの InputDevice を
- *        適切な PlatformUser にマッピングし、2P 対戦の入力ルーティングを実現する。
+ *        RemapControllerInput をオーバーライドし、ゲームパッドの InputDevice ID を
+ *        0↔1 で入れ替えることでエンジンの自然なプレイヤー派発に任せる。
  *        キーボード → P1、ゲームパッド1 → P2、ゲームパッド2 → P1。
+ *        デバイスの接続/切断にも対応（device 0 の接続状態で入れ替え有効/無効を切替）。
  */
 UCLASS()
 class ANIMALGATHERER_API UAnimalGathererViewportClient : public UGameViewportClient
@@ -21,55 +21,49 @@ class ANIMALGATHERER_API UAnimalGathererViewportClient : public UGameViewportCli
 public:
 	UAnimalGathererViewportClient();
 
-	virtual void Init(FWorldContext& WorldContext, UGameInstance* OwningGameInstance, bool bCreateNewAudioDevice = true) override;
 	virtual void BeginDestroy() override;
-	virtual void RemapControllerInput(FInputKeyEventArgs& InOutKeyEvent) override;
 
-	/** @brief デバッグ用。true だとキーボード入力も P2 にルーティング。 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-	bool bDebugKeyboardForP2 = false;
+	/**
+	 * @brief ゲームパッドの InputDevice ID を 0↔1 で入れ替え、エンジン派発前に
+	 *        対象 LocalPlayer を切り替える。キーボードは非 gamepad key なので対象外。
+	 * @param InOutEventArgs 入力イベント引数（InputDevice を書き換える）。
+	 */
+	virtual void RemapControllerInput(FInputKeyEventArgs& InOutEventArgs) override;
 
-	/** @brief true にするとゲームパッドの入れ替えを無効化（すべてのゲームパッドがデフォルトルーティングに戻る）。 */
+	/** @brief true にするとゲームパッドの入れ替えを無効化。 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	bool bDisableSwapGamepadDevice = false;
 
 private:
-	/** @brief P1/P2 の PlatformUserId を LocalPlayer からキャッシュする。 */
-	void CachePlayerPlatformUserIds();
-
-	/**
-	 * @brief 指定 PlatformUserId に対応する仮想 InputDevice を取得または作成する。
-	 * @param UserId 対象の Platform User。
-	 * @return マッピング済みの仮想 InputDeviceId。
-	 */
-	FInputDeviceId GetOrCreateVirtualDeviceForUser(FPlatformUserId UserId);
-
 	/**
 	 * @brief 入力デバイスの接続/切断時のコールバック。
-	 * @param NewState 新しい接続状態。
-	 * @param UserId 対象の Platform User。
-	 * @param DeviceId 対象の Input Device。
+	 *        切断時に対象ゲームパッドをリストから除外し、P2 担当を再選する。
 	 */
 	void OnInputDeviceConnectionChange(EInputDeviceConnectionState NewState, FPlatformUserId UserId, FInputDeviceId DeviceId);
 
-	/** @brief 検出順に並んだゲームパッドの InputDeviceId。 */
+	/** @brief デバイス接続変更デリゲートのハンドル。 */
+	FDelegateHandle DeviceConnectionHandle;
+
+	/** @brief P2 へのルーティングに使う仮想デバイス（遅延生成）。 */
+	FInputDeviceId P2VirtualDevice;
+
+	/** @brief P2VirtualDevice の生成・マッピング完了フラグ。 */
+	bool bP2VirtualDeviceInitialized = false;
+
+	/** @brief 起動時に既接続デバイスの user 0 再割当てを完了したか。 */
+	bool bInitialReassignDone = false;
+
+	/** @brief 検出順に並んだゲームパッドの InputDeviceId（先頭が P2 担当）。 */
 	TArray<FInputDeviceId> GamepadOrderList;
 
 	/** @brief 既知のゲームパッド InputDeviceId の集合。 */
 	TSet<FInputDeviceId> KnownGamepadIds;
 
-	/** @brief PlatformUserId → 割り当て済み仮想 InputDeviceId のキャッシュ。 */
-	TMap<FPlatformUserId, FInputDeviceId> CachedVirtualDevices;
-
-	/** @brief 自前で作成した仮想 InputDeviceId の集合（切断通知のフィルタ用）。 */
-	TSet<FInputDeviceId> VirtualDeviceIds;
-
-	/** @brief P1 (ControllerId=0) の PlatformUserId キャッシュ。 */
-	FPlatformUserId P1PlatformUserId = PLATFORMUSERID_NONE;
-
-	/** @brief P2 (ControllerId=1) の PlatformUserId キャッシュ。 */
-	FPlatformUserId P2PlatformUserId = PLATFORMUSERID_NONE;
-
-	/** @brief デバイス接続変更デリゲートのハンドル。 */
-	FDelegateHandle DeviceConnectionHandle;
+	/**
+	 * @brief デバイスをキーボードと同じ PlatformUser（user 0＝ビューポートフォーカス持ち）に
+	 *        強制再割当てする。gamepad が user 1 に追いやられて視口フォーカス経由で
+	 *        InputKey に届かないのを是正する。冪等。
+	 * @param DeviceId 再割当て対象のデバイス。
+	 */
+	void ForceDeviceToPrimaryUser(FInputDeviceId DeviceId);
 };

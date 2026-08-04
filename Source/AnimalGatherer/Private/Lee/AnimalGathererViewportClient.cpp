@@ -1,28 +1,22 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Lee/AnimalGathererViewportClient.h"
+#include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Engine/GameInstance.h"
-#include "Engine/World.h"
-#include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
+
+namespace
+{
+	/** @brief P2 ルーティング用の仮想デバイス id。実機の手柄 id（1,2,3…）と衝突しない高位の値。 */
+	constexpr int32 P2_VIRTUAL_DEVICE_ID = 1000;
+}
 
 UAnimalGathererViewportClient::UAnimalGathererViewportClient()
 {
-}
-
-void UAnimalGathererViewportClient::Init(FWorldContext& WorldContext, UGameInstance* OwningGameInstance, bool bCreateNewAudioDevice)
-{
-	Super::Init(WorldContext, OwningGameInstance, bCreateNewAudioDevice);
-
-	// 入力デバイスの接続/切断を監視
-	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-	DeviceConnectionHandle = DeviceMapper.GetOnInputDeviceConnectionChange().AddUObject(
+	// 入力デバイスの接続/切断を監視（构造期に一度だけバインド＝重複登録を回避）
+	IPlatformInputDeviceMapper& Mapper = IPlatformInputDeviceMapper::Get();
+	DeviceConnectionHandle = Mapper.GetOnInputDeviceConnectionChange().AddUObject(
 		this, &UAnimalGathererViewportClient::OnInputDeviceConnectionChange);
-
-	// P1/P2 の PlatformUserId をキャッシュ
-	CachePlayerPlatformUserIds();
-
-	UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] === Init: device connection delegate bound ==="));
 }
 
 void UAnimalGathererViewportClient::BeginDestroy()
@@ -35,156 +29,127 @@ void UAnimalGathererViewportClient::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-void UAnimalGathererViewportClient::CachePlayerPlatformUserIds()
+void UAnimalGathererViewportClient::RemapControllerInput(FInputKeyEventArgs& InOutEventArgs)
 {
-	UGameInstance* GI = GetGameInstance();
-	if (!GI)
+	Super::RemapControllerInput(InOutEventArgs);
+
+	// 起動直後に既接続の全デバイスを user 0（キーボード＝視口フォーカス持ち）へ強制再割当て。
+	// gamepad2 が user 1 に割り当てられて視口フォーカス経由で InputKey に届かないのを是正する。
+	// 任意のイベント（多くはマウス/キーボード）で一度だけ走る。
+	if (!bInitialReassignDone)
+	{
+		bInitialReassignDone = true; // ForceDeviceToPrimaryUser がブロードキャスト→再入するため先に立てる
+		TArray<FInputDeviceId> Devices;
+		IPlatformInputDeviceMapper::Get().GetAllConnectedInputDevices(Devices);
+		for (const FInputDeviceId& Dev : Devices)
+		{
+			ForceDeviceToPrimaryUser(Dev);
+		}
+	}
+
+	const UWorld* ViewportWorld = GetWorld();
+	const int32 NumLocalPlayers = ViewportWorld ? ViewportWorld->GetGameInstance()->GetNumLocalPlayers() : 0;
+	const bool bIsGamepad = InOutEventArgs.Key.IsGamepadKey();
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("[ViewportClient] Remap: dev=%d key=%s gamepad=%d numLP=%d swapDisabled=%d"),
+		InOutEventArgs.InputDevice.GetId(), *InOutEventArgs.Key.ToString(),
+		bIsGamepad, NumLocalPlayers, bDisableSwapGamepadDevice);
+
+	// ローカル2プレイヤー未満、非ゲームパッド、または手動無効時は対象外（キーボードは自然に P1 へ）
+	if (NumLocalPlayers <= 1 || !bIsGamepad || bDisableSwapGamepadDevice)
 	{
 		return;
 	}
 
-	const TArray<ULocalPlayer*>& LocalPlayers = GI->GetLocalPlayers();
-	for (const ULocalPlayer* LP : LocalPlayers)
+	// 新規ゲームパッドを検出順に登録
+	if (!KnownGamepadIds.Contains(InOutEventArgs.InputDevice))
 	{
-		if (LP->GetControllerId() == 0)
-		{
-			P1PlatformUserId = LP->GetPlatformUserId();
-		}
-		else if (LP->GetControllerId() == 1)
-		{
-			P2PlatformUserId = LP->GetPlatformUserId();
-		}
+		KnownGamepadIds.Add(InOutEventArgs.InputDevice);
+		GamepadOrderList.Add(InOutEventArgs.InputDevice);
+		UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] New gamepad dev=%d order=%d"),
+			InOutEventArgs.InputDevice.GetId(), GamepadOrderList.Num() - 1);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[ViewportClient] Cached P1 PlatformUserId=%d, P2 PlatformUserId=%d"),
-		P1PlatformUserId.GetInternalId(), P2PlatformUserId.GetInternalId());
-}
-
-FInputDeviceId UAnimalGathererViewportClient::GetOrCreateVirtualDeviceForUser(FPlatformUserId UserId)
-{
-	// 既存のキャッシュを確認
-	if (const FInputDeviceId* Existing = CachedVirtualDevices.Find(UserId))
+	// P2 用仮想デバイスを遅延生成して P2 の PlatformUser に紐付ける
+	if (!bP2VirtualDeviceInitialized)
 	{
-		return *Existing;
+		P2VirtualDevice = FInputDeviceId::CreateFromInternalId(P2_VIRTUAL_DEVICE_ID);
+		bP2VirtualDeviceInitialized = true; // Internal_MapInputDeviceToUser のブロードキャスト再入ガード
+
+		const TArray<ULocalPlayer*>& LPs = ViewportWorld->GetGameInstance()->GetLocalPlayers();
+		const FPlatformUserId P2User = (LPs.IsValidIndex(1) && LPs[1])
+			? LPs[1]->GetPlatformUserId()
+			: FPlatformUserId::CreateFromInternalId(1);
+
+		IPlatformInputDeviceMapper::Get().Internal_MapInputDeviceToUser(
+			P2VirtualDevice, P2User, EInputDeviceConnectionState::Connected);
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] P2 virtual dev=%d -> user(id=%d)"),
+			P2VirtualDevice.GetId(), P2User.GetInternalId());
 	}
 
-	IPlatformInputDeviceMapper& Mapper = IPlatformInputDeviceMapper::Get();
-
-	// 新しい仮想 InputDeviceId を割り当て
-	const FInputDeviceId NewDeviceId = Mapper.AllocateNewInputDeviceId();
-
-	// 指定 PlatformUser にマッピング
-	Mapper.Internal_MapInputDeviceToUser(NewDeviceId, UserId, EInputDeviceConnectionState::Connected);
-
-	// キャッシュに保存
-	CachedVirtualDevices.Add(UserId, NewDeviceId);
-	VirtualDeviceIds.Add(NewDeviceId);
-
-	UE_LOG(LogTemp, Log, TEXT("[ViewportClient] Created virtual device (id=%d) for PlatformUser %d"),
-		NewDeviceId.GetId(), UserId.GetInternalId());
-
-	return NewDeviceId;
+	// 先頭（最古検出）のゲームパッドを P2 へ、それ以外は自然に P1
+	if (GamepadOrderList.Num() > 0 && InOutEventArgs.InputDevice == GamepadOrderList[0])
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] dev=%d -> P2"), InOutEventArgs.InputDevice.GetId());
+		InOutEventArgs.InputDevice = P2VirtualDevice;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] dev=%d -> P1 (natural)"), InOutEventArgs.InputDevice.GetId());
+	}
 }
 
 void UAnimalGathererViewportClient::OnInputDeviceConnectionChange(
 	EInputDeviceConnectionState NewState, FPlatformUserId UserId, FInputDeviceId DeviceId)
 {
-	// 自分で作成した仮想デバイスは無視
-	if (VirtualDeviceIds.Contains(DeviceId))
+	// 仮想デバイス（P2 ルーティング用）は常に無視。
+	// インスタンス状態ではなく id で判定＝過去 PIE の stale リスナ等、どのインスタンスで呼ばれても確実に弾く。
+	if (DeviceId.GetId() == P2_VIRTUAL_DEVICE_ID)
 	{
 		return;
 	}
 
-	if (NewState == EInputDeviceConnectionState::Disconnected)
+	UE_LOG(LogTemp, Warning,
+		TEXT("[ViewportClient] device %d %s (user=%d)"),
+		DeviceId.GetId(),
+		NewState == EInputDeviceConnectionState::Connected ? TEXT("connected") : TEXT("disconnected"),
+		UserId.GetInternalId());
+
+	if (NewState == EInputDeviceConnectionState::Connected)
 	{
-		if (KnownGamepadIds.Contains(DeviceId))
-		{
-			GamepadOrderList.Remove(DeviceId);
-			KnownGamepadIds.Remove(DeviceId);
-
-			UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] Gamepad device %d disconnected. %d gamepad(s) remain."),
-				DeviceId.GetId(), GamepadOrderList.Num());
-
-			// すべてのゲームパッドが切断されたら入れ替えを無効化
-			if (GamepadOrderList.Num() == 0)
-			{
-				bDisableSwapGamepadDevice = true;
-				UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] No gamepads connected → bDisableSwapGamepadDevice = true"));
-			}
-		}
+		// 接続されたデバイスを user 0 へ（gamepad が user 1 に割り当てられるのを上書き）
+		ForceDeviceToPrimaryUser(DeviceId);
+	}
+	else if (NewState == EInputDeviceConnectionState::Disconnected && KnownGamepadIds.Contains(DeviceId))
+	{
+		KnownGamepadIds.Remove(DeviceId);
+		GamepadOrderList.Remove(DeviceId);
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] gamepad dev=%d disconnected. %d remain."),
+			DeviceId.GetId(), GamepadOrderList.Num());
 	}
 }
 
-void UAnimalGathererViewportClient::RemapControllerInput(FInputKeyEventArgs& InOutKeyEvent)
+void UAnimalGathererViewportClient::ForceDeviceToPrimaryUser(FInputDeviceId DeviceId)
 {
-	if (InOutKeyEvent.Key.IsGamepadKey())
+	// P2 仮想デバイスは user 1 に留める必要があるため対象外（いかなるインスタンスから呼ばれても）
+	if (DeviceId.GetId() == P2_VIRTUAL_DEVICE_ID)
 	{
-		const FInputDeviceId RealDeviceId = InOutKeyEvent.InputDevice;
-
-		// 初回検出のゲームパッドを登録
-		if (!KnownGamepadIds.Contains(RealDeviceId))
-		{
-			KnownGamepadIds.Add(RealDeviceId);
-			GamepadOrderList.Add(RealDeviceId);
-
-			UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] New gamepad detected: device=%d, order index=%d"),
-				RealDeviceId.GetId(), GamepadOrderList.Num() - 1);
-
-			// ゲームパッドが再接続されたら入れ替えを再有効化
-			if (GamepadOrderList.Num() == 1 && bDisableSwapGamepadDevice)
-			{
-				bDisableSwapGamepadDevice = false;
-				UE_LOG(LogTemp, Warning, TEXT("[ViewportClient] Gamepad reconnected → bDisableSwapGamepadDevice = false"));
-			}
-		}
-
-		// 入れ替え無効時はデフォルトルーティング（すべて P1）
-		if (bDisableSwapGamepadDevice)
-		{
-			return;
-		}
-
-		const int32 GamepadIndex = GamepadOrderList.IndexOfByKey(RealDeviceId);
-
-		if (GamepadIndex == 0)
-		{
-			// 1つ目のゲームパッド → P2 (LP1)
-			if (P2PlatformUserId == PLATFORMUSERID_NONE)
-			{
-				CachePlayerPlatformUserIds();
-			}
-			if (P2PlatformUserId != PLATFORMUSERID_NONE)
-			{
-				InOutKeyEvent.InputDevice = GetOrCreateVirtualDeviceForUser(P2PlatformUserId);
-			}
-		}
-		else if (GamepadIndex == 1)
-		{
-			// 2つ目のゲームパッド → P1 (LP0)
-			if (P1PlatformUserId == PLATFORMUSERID_NONE)
-			{
-				CachePlayerPlatformUserIds();
-			}
-			if (P1PlatformUserId != PLATFORMUSERID_NONE)
-			{
-				InOutKeyEvent.InputDevice = GetOrCreateVirtualDeviceForUser(P1PlatformUserId);
-			}
-		}
-		// GamepadIndex >= 2: そのまま（デフォルトで P1）
+		return;
 	}
-	else
+
+	IPlatformInputDeviceMapper& Mapper = IPlatformInputDeviceMapper::Get();
+	// キーボード（デフォルトデバイス）の所属 user を“プライマリ”（視口フォーカス持ち）とする
+	const FPlatformUserId PrimaryUser = Mapper.GetUserForInputDevice(Mapper.GetDefaultInputDevice());
+	const FPlatformUserId CurrentUser = Mapper.GetUserForInputDevice(DeviceId);
+	if (CurrentUser != PrimaryUser)
 	{
-		// ゲームパッド以外（キーボード/マウス）
-		if (bDebugKeyboardForP2)
-		{
-			if (P2PlatformUserId == PLATFORMUSERID_NONE)
-			{
-				CachePlayerPlatformUserIds();
-			}
-			if (P2PlatformUserId != PLATFORMUSERID_NONE)
-			{
-				InOutKeyEvent.InputDevice = GetOrCreateVirtualDeviceForUser(P2PlatformUserId);
-			}
-		}
+		Mapper.Internal_MapInputDeviceToUser(DeviceId, PrimaryUser, EInputDeviceConnectionState::Connected);
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] device %d reassigned user %d -> %d"),
+			DeviceId.GetId(), CurrentUser.GetInternalId(), PrimaryUser.GetInternalId());
 	}
 }
