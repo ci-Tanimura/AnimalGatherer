@@ -16,6 +16,7 @@ AMainGameMode::AMainGameMode()
     P2Score = 0;
     CachedAnimalSpawner = nullptr;
     TimeRemaining = 0;
+    CountdownRemaining = 0;
 }
 
 void AMainGameMode::BeginPlay()
@@ -28,11 +29,6 @@ void AMainGameMode::BeginPlay()
     // レベル内のAAnimalSpawnerを探して取得
     CachedAnimalSpawner = Cast<AAnimalSpawner>(UGameplayStatics::GetActorOfClass(GetWorld(), AAnimalSpawner::StaticClass()));
 
-    // 問題なければスポーナーの開始関数を呼び出す
-    if (P2Controller && CachedAnimalSpawner) {
-        CachedAnimalSpawner->StartSpawning();
-    }
-
     // 制限時間の初期化
     TimeRemaining = TotalGameTime;
 
@@ -41,11 +37,8 @@ void AMainGameMode::BeginPlay()
         OnTimeChanged.Broadcast(TimeRemaining);
     }
 
-    // 1秒ごとにAdvanceTimerを呼び出すタイマーを設定
-    GetWorldTimerManager().SetTimer( GameTimerHandle, this, &AMainGameMode::AdvanceTimer, 1.0f, true );
 
-    if (HUDWidgetClass)
-    {
+    if (HUDWidgetClass) {
         UUserWidget* HUDWidget = CreateWidget<UUserWidget>(GetWorld(), HUDWidgetClass);
         if (HUDWidget)
         {
@@ -53,6 +46,58 @@ void AMainGameMode::BeginPlay()
         }
     }
 
+    // カウントダウン中はプレイヤーの操作を無効化
+    SetPlayersInputEnabled(false);
+
+    // カウントダウン初期化（切り上げ整数値化）
+    CountdownRemaining = FMath::CeilToInt(ReadyDelay);
+
+    // 初期値をUIへ通知
+    if (OnCountdownChanged.IsBound()) {
+        OnCountdownChanged.Broadcast(CountdownRemaining);
+    }
+
+    // 1秒ごとに AdvanceCountdown を呼び出すタイマーをセット
+    GetWorldTimerManager().SetTimer(ReadyTimerHandle, this, &AMainGameMode::AdvanceCountdown, 1.0f, true);
+}
+
+void AMainGameMode::AdvanceCountdown()
+{
+    CountdownRemaining--;
+
+    if (OnCountdownChanged.IsBound()) {
+        OnCountdownChanged.Broadcast(CountdownRemaining);
+    }
+
+    if (CountdownRemaining <= 0) {
+        GetWorldTimerManager().ClearTimer(ReadyTimerHandle);
+        StartMatch();
+    }
+}
+
+void AMainGameMode::StartMatch()
+{
+    // プレイヤーの操作を許可
+    SetPlayersInputEnabled(true);
+
+    // スポーナーの開始
+    if (CachedAnimalSpawner) {
+        CachedAnimalSpawner->StartSpawning();
+    }
+
+    // 1秒ごとにAdvanceTimerを呼び出すタイマーを設定
+    GetWorldTimerManager().SetTimer(GameTimerHandle, this, &AMainGameMode::AdvanceTimer, 1.0f, true);
+}
+
+void AMainGameMode::SetPlayersInputEnabled(bool bEnable)
+{
+    for (int32 i = 0; i < 2; ++i) {
+        APlayerController* PC = UGameplayStatics::GetPlayerController(this, i);
+        if (PC) {
+            PC->SetIgnoreMoveInput(!bEnable);
+            PC->SetIgnoreLookInput(!bEnable);
+        }
+    }
 }
 
 void AMainGameMode::AddScore(int32 PlayerID, int32 ScoreToAdd)

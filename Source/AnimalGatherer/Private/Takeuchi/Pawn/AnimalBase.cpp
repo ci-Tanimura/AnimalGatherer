@@ -156,6 +156,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 		{
 			GameMode->AddScore(0, 1);
 		}
+		// 2026.07.31 Gu start
+		// ゴールの効果音再生
+		if (GoalSound)
+		{
+			UGameplayStatics::PlaySound2D(this, GoalSound);
+		}
+		// 2026.07.31 Gu end
 		Destroy();
 		return;
 	}
@@ -167,6 +174,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 		{
 			GameMode->AddScore(1, 1);
 		}
+		// 2026.07.31 Gu start
+		// ゴールの効果音再生
+		if (GoalSound)
+		{
+			UGameplayStatics::PlaySound2D(this, GoalSound);
+		}
+		// 2026.07.31 Gu end
 		Destroy();
 		return;
 	}
