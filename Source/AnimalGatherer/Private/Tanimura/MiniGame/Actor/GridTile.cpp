@@ -4,6 +4,7 @@
 #include "Tanimura/MiniGame/Actor/GridTile.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Character.h"
+#include "Tanimura/MiniGame/DamageableInterface.h"
 
 AGridTile::AGridTile()
 {
@@ -54,12 +55,11 @@ void AGridTile::OnTileBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* 
         return;
     }
 
-    // 危険、または点滅状態の時にキャラクターが乗った場合
+    // 危険、または点滅状態の時にダメージを受けられる対象が乗った場合
     if (CurrentTileState == ETileState::ActiveHazard || CurrentTileState == ETileState::ExpiringHazard) {
-        ACharacter* PlayerCharacter = Cast<ACharacter>(OtherActor);
-        if (PlayerCharacter) {
-            // TODO: ここでGameModeやPlayerControllerに「プレイヤー死亡」の通知を送る
-            // 例: デリゲートのBroadcast、またはインターフェースを通じたダメージ適用など
+        if (OtherActor && OtherActor->Implements<UDamageableInterface>()) {
+            // ダメージ処理をインターフェース経由で委譲する
+            IDamageableInterface::Execute_ReceiveDamage(OtherActor);
         }
     }
 }
