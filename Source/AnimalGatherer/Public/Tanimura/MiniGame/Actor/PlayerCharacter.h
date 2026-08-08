@@ -5,11 +5,17 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "Tanimura/MiniGame/DamageableInterface.h"
 #include "PlayerCharacter.generated.h"
 
+class AController;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UStaticMeshComponent;
+
+// プレイヤー死亡を通知するデリゲート（引数：死亡したプレイヤーのコントローラー）
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerDiedSignature, AController*, PlayerController);
 
 /**
  * プレイヤーキャラクタークラス
@@ -17,7 +23,7 @@ class UInputAction;
  */
 
 UCLASS()
-class ANIMALGATHERER_API APlayerCharacter : public ACharacter
+class ANIMALGATHERER_API APlayerCharacter : public ACharacter, public IDamageableInterface
 {
     GENERATED_BODY()
 
@@ -38,6 +44,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Status")
     void Die();
 
+    // プレイヤーカラーを設定し、足元の円へ反映する
+    UFUNCTION(BlueprintCallable, Category = "PlayerMarker")
+    void SetPlayerColor(const FLinearColor& NewColor);
+
+    // プレイヤー死亡通知イベント
+    UPROPERTY(BlueprintAssignable, Category = "Status")
+    FOnPlayerDiedSignature OnPlayerDied;
+
+    // ダメージを受けた際の処理（IDamageableInterface）
+    virtual void ReceiveDamage_Implementation() override;
+
 protected:
     // 自由移動入力処理
     void Move(const FInputActionValue& Value);
@@ -56,4 +73,15 @@ private:
     // ジャンプ用 Input Action
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UInputAction> JumpAction;
+
+    // 足元のプレイヤーカラー円
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PlayerMarker", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UStaticMeshComponent> PlayerCircleMesh;
+
+    // このプレイヤーを表すカラー
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PlayerMarker", meta = (AllowPrivateAccess = "true"))
+    FLinearColor PlayerColor = FLinearColor::White;
+
+    // 足元の円へプレイヤーカラーを反映する
+    void ApplyPlayerColor();
 };
