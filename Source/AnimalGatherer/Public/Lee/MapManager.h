@@ -63,6 +63,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TMap<ETileType, UHierarchicalInstancedStaticMeshComponent*> StateVisuals;
 
+	// 2026.09.25 Lee start
+	/**
+	 * @brief 2P（赤）用の方向矢印 HISM レイヤーマップ（DirUp～DirRight の4種のみ）。
+	 *        1P 用は従来通り StateVisuals を使用する。
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TMap<ETileType, UHierarchicalInstancedStaticMeshComponent*> P2DirectionVisuals;
+	// 2026.09.25 Lee end
+
 	//==============================================================================
 	// コアデータ
 	//==============================================================================
@@ -102,8 +111,35 @@ public:
 	 * @param GridY グリッドY座標（行）。
 	 * @param NewType 設定する新しいタイル種類。
 	 */
+	// 2026.09.25 Lee start
+	// void SetTileData(int32 GridX, int32 GridY, ETileType NewType);
+	/**
+	 * @param InOwnerPlayerId 設定する所有プレイヤーID（0 = 1P, 1 = 2P）。方向タイルのみ有効。
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Map")
-	void SetTileData(int32 GridX, int32 GridY, ETileType NewType);
+	void SetTileData(int32 GridX, int32 GridY, ETileType NewType, uint8 InOwnerPlayerId = 0);
+	// 2026.09.25 Lee end
+
+	// 2026.09.25 Lee start
+	/**
+	 * @brief 指定座標の矢印が指定プレイヤーの所有物である場合のみ Empty に戻す。
+	 *        相手プレイヤーに上書きされた矢印は消去しない（FIFO 消退の誤削除防止）。
+	 * @param OwnerPlayerId 所有者を判定するプレイヤーID（0 = 1P, 1 = 2P）。
+	 * @return 実際に消去できた場合 true。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Map")
+	bool ClearArrowIfOwned(int32 GridX, int32 GridY, uint8 OwnerPlayerId);
+
+	/**
+	 * @brief 方向タイル（DirUp～DirRight）かどうかを判定する。
+	 * @param Type 判定するタイル種類。
+	 * @return 方向タイルの場合 true。
+	 */
+	static bool IsDirectionTile(ETileType Type)
+	{
+		return Type >= ETileType::DirUp && Type <= ETileType::DirRight;
+	}
+	// 2026.09.25 Lee end
 
 	/**
 	 * @brief 指定座標がマップ外周のボーダータイルかを判定する。

@@ -312,16 +312,37 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		return;
 	}
 
+	// 2026.09.25 Lee start
+	const uint8 OwnerId = static_cast<uint8>(CursorPawn->PlayerID);
+
+	// 同一座標への再配置は重複登録を防ぐため先に履歴から取り除く
+	// （重複のまま FIFO すると実矢印数と履歴数が乖離し、
+	//  古い矢印が 3 手分より長く残ってしまうバグの原因だった）
+	PlaceHistory.Remove(TargetCoords);
+	// 2026.09.25 Lee end
+
 	// 配置履歴は最大3件（FIFO）、4件目で最古の矢印が Empty に戻る
 	static constexpr int32 MaxHistory = 3;
 	if (PlaceHistory.Num() >= MaxHistory)
 	{
 		const FIntPoint Oldest = PlaceHistory[0];
 		PlaceHistory.RemoveAt(0);
-		MapManagerRef->SetTileData(Oldest.X, Oldest.Y, ETileType::Empty);
+		// 2026.09.25 Lee start
+		// 相手プレイヤーに上書きされた矢印は消さず、自分の矢印のみ消退する
+		// MapManagerRef->SetTileData(Oldest.X, Oldest.Y, ETileType::Empty);
+		const bool bCleared = MapManagerRef->ClearArrowIfOwned(Oldest.X, Oldest.Y, OwnerId);
+		if (!bCleared)
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("PlaceDirection: 消退対象 (%d, %d) は他プレイヤー矢印のため保持"), Oldest.X, Oldest.Y);
+		}
+		// 2026.09.25 Lee end
 	}
 
-	MapManagerRef->SetTileData(TargetCoords.X, TargetCoords.Y, Direction);
+	// 2026.09.25 Lee start
+	// MapManagerRef->SetTileData(TargetCoords.X, TargetCoords.Y, Direction);
+	MapManagerRef->SetTileData(TargetCoords.X, TargetCoords.Y, Direction, OwnerId);
+	// 2026.09.25 Lee end
 	PlaceHistory.Add(TargetCoords);
 }
 

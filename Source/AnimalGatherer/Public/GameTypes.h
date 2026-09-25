@@ -37,4 +37,13 @@ struct FMapTileData
 	/** @brief タイルの種類。 */
 	UPROPERTY(BlueprintReadWrite)
 	ETileType TileType = ETileType::Empty;
+
+	// 2026.09.25 Lee start
+	/**
+	 * @brief このタイル（方向矢印）を配置したプレイヤーID（0 = 1P, 1 = 2P）。
+	 *        @see ACursorPawn::PlayerID と同じ規約。方向タイル以外では使用しない（常に 0）。
+	 */
+	UPROPERTY(BlueprintReadOnly)
+	uint8 OwnerPlayerId = 0;
+	// 2026.09.25 Lee end
 };
