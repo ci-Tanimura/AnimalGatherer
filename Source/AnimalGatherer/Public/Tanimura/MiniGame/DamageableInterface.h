@@ -7,7 +7,7 @@
 UINTERFACE(MinimalAPI, Blueprintable)
 class UDamageableInterface : public UInterface
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 };
 
 /**
@@ -16,10 +16,10 @@ class UDamageableInterface : public UInterface
  */
 class ANIMALGATHERER_API IDamageableInterface
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // ダメージを受けた際に呼ばれる処理（C++/Blueprintどちらでも実装可能）
-    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MiniGame|Damage")
-    void ReceiveDamage();
+	// ダメージを受けた際に呼ばれる処理（C++/Blueprintどちらでも実装可能）
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MiniGame|Damage")
+	void ReceiveDamage();
 };

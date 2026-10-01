@@ -8,7 +8,7 @@
 UINTERFACE(MinimalAPI, Blueprintable)
 class UGridInteractInterface : public UInterface
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 };
 
 /**
@@ -17,13 +17,10 @@ class UGridInteractInterface : public UInterface
 
 class ANIMALGATHERER_API IGridInteractInterface
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    /**
-     * 指定された座標（GridCoords）のマスが、現在どの状態（方向）かを取得する
-     * C++でもBlueprintでもオーバーライド（実装）できるように設定
-     */
-    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Grid Interaction")
-    ETileType GetCellState(FIntPoint GridCoords) const;
+	// 指定した座標（GridCoords）のマスが、現在どの状態かを取得する
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Grid Interaction")
+	ETileType GetCellState(FIntPoint GridCoords) const;
 };

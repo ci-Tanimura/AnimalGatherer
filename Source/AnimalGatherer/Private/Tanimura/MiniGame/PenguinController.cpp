@@ -6,12 +6,12 @@
 
 void APenguinController::BeginPlay()
 {
-    Super::BeginPlay();
+	Super::BeginPlay();
 
-    // Enhanced Input Local Player Subsystem を取得して Mapping Context を追加
-    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())) {
-        if (DefaultMappingContext) {
-            Subsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
-        }
-    }
+	// Enhanced Input Local Player Subsystem を取得して Mapping Context を追加
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())) {
+		if (DefaultMappingContext) {
+			Subsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
+		}
+	}
 }
