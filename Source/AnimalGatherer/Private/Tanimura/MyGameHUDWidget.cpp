@@ -8,20 +8,16 @@
 
 void UMyGameHUDWidget::NativeConstruct()
 {
-    Super::NativeConstruct();
+	Super::NativeConstruct();
 
-    // MainGameModeを取得
-    if (AMainGameMode* GameMode = Cast<AMainGameMode>(UGameplayStatics::GetGameMode(GetWorld()))) {
-        // 残り時間変更イベントのバインド
-        GameMode->OnTimeChanged.AddDynamic(this, &UMyGameHUDWidget::UpdateTimerText);
-
-        // スコア変更イベントのバインド
-        GameMode->OnScoreChanged.AddDynamic(this, &UMyGameHUDWidget::UpdateScoreText);
-
-        // タイムアップイベントのバインド
-        GameMode->OnTimeUp.AddDynamic(this, &UMyGameHUDWidget::PlayTimeUpSequence);
-
-        // ゲーム開始時の最初のスコア（0対0）をUIに反映しておく
-        UpdateScoreText(0, 0);
-    }
+	// MainGameModeを取得
+	AMainGameMode* GameMode = Cast<AMainGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	if (!GameMode) {
+		UE_LOG(LogTemp, Warning, TEXT("UMyGameHUDWidget::NativeConstructで、AMainGameModeを取得できませんでした。"));
+		return;
+	}
+	// スコア変更イベントのバインド
+	GameMode->OnTimeChanged.AddUniqueDynamic(this, &UMyGameHUDWidget::UpdateTimerText);
+	GameMode->OnScoreChanged.AddUniqueDynamic(this, &UMyGameHUDWidget::UpdateScoreText);
+	GameMode->OnTimeUp.AddUniqueDynamic(this, &UMyGameHUDWidget::PlayTimeUpSequence);
 }

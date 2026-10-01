@@ -18,14 +18,14 @@ class ANIMALGATHERER_API APenguinController : public APlayerController
 	GENERATED_BODY()
 
 protected:
-    virtual void BeginPlay() override;
+	virtual void BeginPlay() override;
 
 private:
-    // 初期ロード時に適用する Input Mapping Context
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UInputMappingContext> DefaultMappingContext;
+	// 初期ロード時に適用する Input Mapping Context
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
-    // Mapping Context の優先度
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-    int32 MappingPriority = 0;
+	// Mapping Context の優先度
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	int32 MappingPriority = 0;
 };

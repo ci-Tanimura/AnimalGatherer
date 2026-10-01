@@ -26,112 +26,112 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTimeUpSignature);
 UCLASS()
 class ANIMALGATHERER_API AMainGameMode : public AAnimalGathererGameModeBase
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    AMainGameMode();
+	AMainGameMode();
 
-    virtual void BeginPlay() override;
+	virtual void BeginPlay() override;
 
-    // スコア加算処理
-    UFUNCTION(BlueprintCallable, Category = "GameMode|Score")
-    void AddScore(int32 PlayerID, int32 ScoreToAdd = 1);
+	// スコア加算処理
+	UFUNCTION(BlueprintCallable, Category = "GameMode|Score")
+	void AddScore(int32 PlayerID, int32 ScoreToAdd = 1);
 
-    // タイムアップ時にゲームを終わらせる
-    UFUNCTION(BlueprintCallable, Category = "GameMode|Flow")
-    void EndGame();
+	// タイムアップ時にゲームを終わらせる
+	UFUNCTION(BlueprintCallable, Category = "GameMode|Flow")
+	void EndGame();
 
 	// 2025.09.07 Lee start
 	virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
 	// 2025.09.07 Lee end
 
-    // 得点表示更新用イベント
-    UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
-    FOnScoreChangedSignature OnScoreChanged;
+	// 得点表示更新用イベント
+	UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
+	FOnScoreChangedSignature OnScoreChanged;
 
-    // 残り時間更新用イベント
-    UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
-    FOnTimeChangedSignature OnTimeChanged;
+	// 残り時間更新用イベント
+	UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
+	FOnTimeChangedSignature OnTimeChanged;
 
-    // タイムアップ演出用イベント
-    UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
-    FOnTimeUpSignature OnTimeUp;
+	// タイムアップ演出用イベント
+	UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
+	FOnTimeUpSignature OnTimeUp;
 
-    // カウントダウン通知用イベント
-    UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
-    FOnCountdownChangedSignature OnCountdownChanged;
+	// カウントダウン通知用イベント
+	UPROPERTY(BlueprintAssignable, Category = "GameMode|Events")
+	FOnCountdownChangedSignature OnCountdownChanged;
 
 protected:
-    UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
-    int32 P1Score;
+	UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
+	int32 P1Score;
 
-    UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
-    int32 P2Score;
+	UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
+	int32 P2Score;
 
-    // 制限時間（秒）
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Timer")
-    int32 TotalGameTime = 3;
+	// 制限時間（秒）
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Timer")
+	int32 TotalGameTime = 3;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
-    TSubclassOf<UUserWidget> HUDWidgetClass;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
 
 
-    // 遷移先のリザルトレベル名
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Level")
-    FName ResultLevelName = TEXT("LV_Result");
+	// 遷移先のリザルトレベル名
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Level")
+	FName ResultLevelName = TEXT("LV_Result");
 
-    // ゲーム終了時に再生する効果音
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Audio")
-    USoundBase* TimeUpSound;
+	// ゲーム終了時に再生する効果音
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Audio")
+	USoundBase* TimeUpSound;
 
-    // タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
-    float TimeUpDelay = 1.0f;
+	// タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
+	float TimeUpDelay = 1.0f;
 
-    // ゲーム開始前のカウントダウン時間（秒）
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
-    float ReadyDelay = 3.0f;
+	// ゲーム開始前のカウントダウン時間（秒）
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
+	float ReadyDelay = 3.0f;
 
-    // 2026.07.24 Lee start
-    /** @brief 1P用カーソル Pawn のブループリントクラス。 */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
-    TSubclassOf<ACursorPawn> CursorPawnClass_P1;
+	// 2026.07.24 Lee start
+	/** @brief 1P用カーソル Pawn のブループリントクラス。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+	TSubclassOf<ACursorPawn> CursorPawnClass_P1;
 
-    /** @brief 2P用カーソル Pawn のブループリントクラス。 */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
-    TSubclassOf<ACursorPawn> CursorPawnClass_P2;
-    // 2026.07.24 Lee end
+	/** @brief 2P用カーソル Pawn のブループリントクラス。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Cursor")
+	TSubclassOf<ACursorPawn> CursorPawnClass_P2;
+	// 2026.07.24 Lee end
 
 private:
-    // レベル上のスポーナーへの参照
-    UPROPERTY()
-    AAnimalSpawner* CachedAnimalSpawner;
+	// レベル上のスポーナーへの参照
+	UPROPERTY()
+	AAnimalSpawner* CachedAnimalSpawner;
 
-    // 現在の残り時間
-    int32 TimeRemaining;
+	// 現在の残り時間
+	int32 TimeRemaining;
 
-    // 開始カウントダウン用のタイマーハンドル
-    FTimerHandle ReadyTimerHandle;
+	// 開始カウントダウン用のタイマーハンドル
+	FTimerHandle ReadyTimerHandle;
 
-    // タイマーを管理するためのハンドル
-    FTimerHandle GameTimerHandle;
+	// タイマーを管理するためのハンドル
+	FTimerHandle GameTimerHandle;
 
-    // 演出用タイマーのハンドル
-    FTimerHandle ResultDelayTimerHandle;
+	// 演出用タイマーのハンドル
+	FTimerHandle ResultDelayTimerHandle;
 
-    // カウントダウン用タイマーで毎秒呼ぶ処理
-    int32 CountdownRemaining;
-    void AdvanceCountdown();
+	// カウントダウン用タイマーで毎秒呼ぶ処理
+	int32 CountdownRemaining;
+	void AdvanceCountdown();
 
-    // カウントダウン終了後にゲーム本編を開始
-    void StartMatch();
+	// カウントダウン終了後にゲーム本編を開始
+	void StartMatch();
 
-    // プレイヤーの入力許可/不許可を切り替え
-    void SetPlayersInputEnabled(bool bEnable);
+	// プレイヤーの入力許可/不許可を切り替え
+	void SetPlayersInputEnabled(bool bEnable);
 
-    // 残り時間を減らす
-    void AdvanceTimer();
+	// 残り時間を減らす
+	void AdvanceTimer();
 
-    // レベル遷移を行う処理
-    void TransitionToResultLevel();
+	// レベル遷移を行う処理
+	void TransitionToResultLevel();
 };

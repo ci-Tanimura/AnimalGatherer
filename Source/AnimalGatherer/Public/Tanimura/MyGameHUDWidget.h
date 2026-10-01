@@ -7,7 +7,9 @@
 #include "MyGameHUDWidget.generated.h"
 
 /**
- * 
+ * ゲーム本編のHUDウィジェット
+ * MainGameModeのイベントを購読し、BlueprintImplementableEvent経由でWBP側の表示更新を呼び出す
+ * 購読と中継のみを担い、見た目の構築はWBPが担う
  */
 UCLASS()
 class ANIMALGATHERER_API UMyGameHUDWidget : public UUserWidget
@@ -15,18 +17,18 @@ class ANIMALGATHERER_API UMyGameHUDWidget : public UUserWidget
 	GENERATED_BODY()
 	
 protected:
-    // ウィジェットのコンストラクタ
-    virtual void NativeConstruct() override;
+	// ウィジェットが階層に追加されるたびに呼ばれる
+	virtual void NativeConstruct() override;
 
-    // 残り時間が変わったらテキストを更新するイベント
-    UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
-    void UpdateTimerText(int32 RemainingTime);
+	// 残り時間が変わったらテキストを更新するイベント
+	UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
+	void UpdateTimerText(int32 RemainingTime);
 
-    // スコアが変わったらテキストを更新するイベント
-    UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
-    void UpdateScoreText(int32 P1Score, int32 P2Score);
+	// スコアが変わったらテキストを更新するイベント
+	UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
+	void UpdateScoreText(int32 P1Score, int32 P2Score);
 
-    // タイムアップ時にゲーム終了演出を開始するイベント
-    UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
-    void PlayTimeUpSequence();
+	// タイムアップ時にゲーム終了演出を開始するイベント
+	UFUNCTION(BlueprintImplementableEvent, Category = "HUD|Update")
+	void PlayTimeUpSequence();
 };
