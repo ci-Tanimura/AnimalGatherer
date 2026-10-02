@@ -70,7 +70,7 @@ protected:
 
 	// 制限時間（秒）
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Timer")
-	int32 TotalGameTime = 3;
+	int32 TotalGameTime = 120;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
