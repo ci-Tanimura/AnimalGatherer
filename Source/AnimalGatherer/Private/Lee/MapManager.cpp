@@ -59,6 +59,27 @@ ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 	return ETileType::Empty;
 }
 
+// 2026.10.01 Lee start
+uint8 AMapManager::GetTileOwner(int32 GridX, int32 GridY) const
+{
+	// 範囲外は「所有者なし(0)」と誤判定させないよう 255 を返す
+	if (GridX < 0 || GridX >= MapWidth || GridY < 0 || GridY >= MapHeight)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GetTileOwner: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
+			GridX, GridY, MapWidth, MapHeight);
+		return 255;
+	}
+
+	const int32 Index = GridY * MapWidth + GridX;
+	if (!GridData.IsValidIndex(Index))
+	{
+		return 255;
+	}
+
+	return GridData[Index].OwnerPlayerId;
+}
+// 2026.10.01 Lee end
+
 // 2026.09.25 Lee start
 // void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType)
 void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType, uint8 InOwnerPlayerId)

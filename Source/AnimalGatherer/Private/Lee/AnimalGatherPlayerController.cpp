@@ -3,6 +3,9 @@
 #include "Lee/AnimalGatherPlayerController.h"
 #include "Lee/CursorPawn.h"
 #include "Lee/MapManager.h"
+// 2026.10.02 Lee start
+#include "Lee/TutorialGameMode.h"
+// 2026.10.02 Lee end
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -311,6 +314,17 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 			TargetCoords.X, TargetCoords.Y);
 		return;
 	}
+
+	// 2026.10.02 Lee start
+	// チュートリアル中は GameMode 側の配置制限に従う（通常ゲームでは Cast 失敗するため何もしない）
+	const ATutorialGameMode* TutorialGameMode = Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(this));
+	if (TutorialGameMode && !TutorialGameMode->IsPlacementAllowed(static_cast<uint8>(CursorPawn->PlayerID), TargetCoords))
+	{
+		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: チュートリアルの制限により (%d, %d) には配置できません"),
+			TargetCoords.X, TargetCoords.Y);
+		return;
+	}
+	// 2026.10.02 Lee end
 
 	// 2026.09.25 Lee start
 	const uint8 OwnerId = static_cast<uint8>(CursorPawn->PlayerID);

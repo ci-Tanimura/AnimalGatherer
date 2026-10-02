@@ -153,6 +153,18 @@ public:
 			&& (X == 0 || Y == 0 || X == MapWidth - 1 || Y == MapHeight - 1);
 	}
 
+	// 2026.10.01 Lee start
+	/**
+	 * @brief 指定座標のタイル所有プレイヤーIDを取得する（0 = 1P, 1 = 2P）。
+	 *        チュートリアルの「自分の矢印が置かれたか」判定用。
+	 * @param GridX グリッドX座標（列インデックス）。
+	 * @param GridY グリッドY座標（行インデックス）。
+	 * @return 所有プレイヤーID。範囲外・無効インデックスは 255（所有者なし 0 との誤一致防止）。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Map")
+	uint8 GetTileOwner(int32 GridX, int32 GridY) const;
+	// 2026.10.01 Lee end
+
 	//==============================================================================
 	// IGridInteractInterface 実装
 	//==============================================================================
