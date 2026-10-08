@@ -59,6 +59,32 @@ ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 	return ETileType::Empty;
 }
 
+// 2026.10.08 Tanimura start----------------------------------------------------
+FVector AMapManager::ToWorldCenter_Implementation(FIntPoint GridCoords) const
+{
+	const FVector MapOrigin = GetActorLocation();
+
+	// タイルは アクター位置 + グリッド座標 * TileSize に配置される
+	return FVector(
+		MapOrigin.X + GridCoords.X * TileSize,
+		MapOrigin.Y + GridCoords.Y * TileSize,
+		MapOrigin.Z
+	);
+}
+
+bool AMapManager::IsValidCoord_Implementation(FIntPoint GridCoords) const
+{
+	// 0 <= X < MapWidth かつ 0 <= Y < MapHeight なら盤面内
+	return GridCoords.X >= 0 && GridCoords.X < MapWidth
+		&& GridCoords.Y >= 0 && GridCoords.Y < MapHeight;
+}
+
+FIntPoint AMapManager::GetGridSize_Implementation() const
+{
+	return FIntPoint(MapWidth, MapHeight);
+}
+// 2026.10.08 Tanimura end-------------------------------------------------------
+
 // 2026.10.01 Lee start
 uint8 AMapManager::GetTileOwner(int32 GridX, int32 GridY) const
 {
