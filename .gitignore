@@ -3,6 +3,7 @@ Build/
 DerivedDataCache
 Intermediate
 Saved
+Art
 .claudeignore
 .vscode
 .vs
@@ -21,3 +22,9 @@ Content/__ExternalActors__/
 Content/__ExternalObjects__/
 Content/Fab/HexagonTiles/Map/
 *.md
+
+# Project documentation and local validation artifacts
+!Docs/
+!Docs/*.md
+Docs/GLM*
+Docs/MCP-*.json
