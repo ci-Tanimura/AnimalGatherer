@@ -43,21 +43,41 @@ void AMapManager::BeginPlay()
 	Super::BeginPlay();
 }
 
+// 2026.10.06 Lee start（X / Y を独立して範囲外検査し、行跨ぎ誤読を防止）
 ETileType AMapManager::GetCellState_Implementation(FIntPoint GridCoords) const
 {
-	// インデックス = Y * MapWidth + X で GridData を線形アクセス
-	const int32 Index = GridCoords.Y * MapWidth + GridCoords.X;
+	// 【旧実装（保持）】線形インデックスの妥当性のみ確認しており、
+	// X だけ範囲外の座標が隣の行の有効セルへ誤対応する問題があった。
+	// 例: MapWidth=10 のとき (-1, 5) は 5*10-1 = 49 となり (9, 4) と同一インデックスになる。
+	// //
+	// // インデックス = Y * MapWidth + X で GridData を線形アクセス
+	// const int32 Index = GridCoords.Y * MapWidth + GridCoords.X;
+	//
+	// if (GridData.IsValidIndex(Index))
+	// {
+	// 	return GridData[Index].TileType;
+	// }
 
-	if (GridData.IsValidIndex(Index))
+	// X / Y をそれぞれ独立して検査し、範囲外は Goal 誤読などを防ぐため先に Empty を返す
+	if (GridCoords.X < 0 || GridCoords.X >= MapWidth ||
+		GridCoords.Y < 0 || GridCoords.Y >= MapHeight)
 	{
-		return GridData[Index].TileType;
+		UE_LOG(LogTemp, Warning, TEXT("GetCellState: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
+			GridCoords.X, GridCoords.Y, MapWidth, MapHeight);
+
+		return ETileType::Empty;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("GetCellState: 座標 (%d, %d) が範囲外です (Map: %d x %d)"),
-		GridCoords.X, GridCoords.Y, MapWidth, MapHeight);
+	// インデックス = Y * MapWidth + X で GridData を線形アクセス
+	const int32 Index = GridCoords.Y * MapWidth + GridCoords.X;
+	if (!GridData.IsValidIndex(Index))
+	{
+		return ETileType::Empty;
+	}
 
-	return ETileType::Empty;
+	return GridData[Index].TileType;
 }
+// 2026.10.06 Lee end
 
 // 2026.10.08 Tanimura start----------------------------------------------------
 FVector AMapManager::ToWorldCenter_Implementation(FIntPoint GridCoords) const

@@ -15,6 +15,10 @@ ATutorialGameMode::ATutorialGameMode()
 	PrimaryActorTick.bCanEverTick = true;
 	// 2026.10.02 Lee end
 
+	// 2026.10.06 Lee start（チュートリアルは普通対戦フローを使わない）
+	bUseNormalMatchFlow = false;
+	// 2026.10.06 Lee end
+
 	// ハイライトは既定で C++ 実装を使用（BP での差し替えも可）
 	HighlightActorClass = ATutorialHighlightActor::StaticClass();
 

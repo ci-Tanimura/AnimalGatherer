@@ -8,7 +8,10 @@ public class AnimalGatherer : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ApplicationCore" });
+		// 2026.10.06 Lee start（技能システムの HUD 実装向けに UMG を公開依存へ追加）
+		// PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ApplicationCore" }); ←元のコードは消さない
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ApplicationCore", "UMG" });
+		// 2026.10.06 Lee end（技能システムの HUD 実装向けに UMG を公開依存へ追加）
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
