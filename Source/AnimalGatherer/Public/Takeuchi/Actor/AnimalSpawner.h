@@ -66,6 +66,12 @@ private:
 	void TrySpawnAnimal();
 	void CleanupSpawnedAnimals();
 
+	// 2026.10.06 Lee start（普通対戦フローでの生成許可判定を追加）
+	/** @brief 普通対戦では Playing 中かつ本局バインドマップ一致の場合のみ true。
+	 *         教程および AMainGameMode を使わない独立テストは常に true（従来動作） */
+	bool IsSpawnAllowedByMatch() const;
+	// 2026.10.06 Lee end
+
 	UPROPERTY()
 	TArray<TObjectPtr<APawn>> SpawnedAnimals;
 

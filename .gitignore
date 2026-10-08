@@ -3,6 +3,7 @@ Build/
 DerivedDataCache
 Intermediate
 Saved
+Art
 .claudeignore
 .vscode
 .vs
@@ -21,3 +22,6 @@ Content/__ExternalActors__/
 Content/__ExternalObjects__/
 Content/Fab/HexagonTiles/Map/
 *.md
+
+Docs/
+Content/MergeReview/

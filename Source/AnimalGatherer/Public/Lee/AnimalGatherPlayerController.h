@@ -11,6 +11,9 @@ class ACursorPawn;
 class AMapManager;
 class UInputAction;
 class UInputMappingContext;
+// 2026.10.06 Lee start
+class USkillSystemComponent;
+// 2026.10.06 Lee end
 struct FInputActionValue;
 
 /**
@@ -58,6 +61,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputMappingContext* IMC_P2 = nullptr;
 
+	// 2026.10.06 Lee start（スキル用の可設定 Action：既存 Enhanced Input ルーティングへの追加のみ）
+	/** @brief 反転スキル用 Input Action（LB 想定・Boolean）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_SkillReverse = nullptr;
+
+	/** @brief 加速スキル用 Input Action（RB 想定・Boolean）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* IA_SkillSpeed = nullptr;
+	// 2026.10.06 Lee end
+
 	//==============================================================================
 	// カーソル自動連続移動設定
 	//==============================================================================
@@ -94,6 +107,20 @@ public:
 	// 公開メソッド
 	//==============================================================================
 
+	// 2026.10.06 Lee start（スキルシステム：既定装備コンポーネントと読み取り API）
+	/** @brief プレイヤー別スキルスロット管理コンポーネント（既定装備）。 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skill System")
+	USkillSystemComponent* SkillSystemComponent = nullptr;
+
+	/** @brief スキルシステムコンポーネントを取得する。 */
+	UFUNCTION(BlueprintPure, Category = "Skill System")
+	USkillSystemComponent* GetSkillSystemComponent() const;
+
+	/** @brief LocalPlayer の ControllerId からプレイヤー ID を取得する（0 / 1 以外は 255）。 */
+	UFUNCTION(BlueprintPure, Category = "Skill System")
+	uint8 GetSkillPlayerId() const;
+	// 2026.10.06 Lee end
+
 	/**
 	 * @brief 現在カーソル位置に指定方向の矢印タイルを配置する。
 	 *        MapManager の SetTileData を呼び出し、ビジュアルも即時更新される。
@@ -102,9 +129,52 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gameplay")
 	void PlaceDirection(ETileType Direction);
 
-	/** @brief MapManager 参照を設定する（GameMode から呼ばれることを想定）。 */
+	// 2026.10.06 Lee start（旧インライン実装を cpp へ移動し、有効参照時にスキル初期化を依頼する）
+	// /** @brief MapManager 参照を設定する（GameMode から呼ばれることを想定）。 */
+	// UFUNCTION(BlueprintCallable, Category = "References")
+	// void SetMapManager(AMapManager* InMapManager) { MapManagerRef = InMapManager; } ←元のコードは消さない
+	/**
+	 * @brief MapManager 参照を設定する（GameMode から呼ばれることを想定）。
+	 *        有効な参照が設定された場合、普通対戦のスキル初期化を GameMode へ依頼する。
+	 * @param InMapManager 設定するマップ管理アクター。
+	 */
 	UFUNCTION(BlueprintCallable, Category = "References")
-	void SetMapManager(AMapManager* InMapManager) { MapManagerRef = InMapManager; }
+	void SetMapManager(AMapManager* InMapManager);
+
+	/** @brief バインド済みの MapManager 参照を取得する。 */
+	UFUNCTION(BlueprintPure, Category = "References")
+	AMapManager* GetMapManager() const;
+	// 2026.10.06 Lee end
+
+	// 2026.10.06 Lee start（スキル用の受控照会と一時入力のリセット）
+	/**
+	 * @brief 指定身分の現在有効な配置座標のコピーを返す（最大 3 件）。
+	 *        同じ World・同じバインド地図・同じ身分の Controller の実履歴のみを対象とし、
+	 *        重複除去・座標有効・非ボーダー・方向タイルかつ所有者一致の照合を行う。
+	 *        可変の履歴配列は公開しない。
+	 * @param OwnerPlayerId 対象プレイヤー ID（0 = 1P / 1 = 2P。自分自身も指定可能）。
+	 * @return 有効な配置座標のコピー（該当なしは空配列）。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Gameplay")
+	TArray<FIntPoint> GetOwnedPlacedArrowCoords(uint8 OwnerPlayerId) const;
+
+	/**
+	 * @brief 連移入力・タイマー・スキル押下状態を即時クリアする（切断・フォーカス喪失向け）。
+	 * @param bRequireSkillRelease true の場合、スキルは解放イベント後のみ再武装する。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void ResetTransientInput(bool bRequireSkillRelease = false);
+	// 2026.10.06 Lee end
+
+	// 2026.10.06 Lee start（B2：ビューポート物理層からの解放通知）
+	/**
+	 * @brief ビューポート物理層の解放確認に基づき、該当スキルの再武装待ちのみを解除する。
+	 *        使用回数・クールダウン・入力値には触れない。
+	 * @param bSpeed true = 加速（RB）/ false = 反転（LB）。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void NotifySkillButtonReleased(bool bSpeed);
+	// 2026.10.06 Lee end（B2）
 
 	/**
 	 * @brief 指定 Tag を持つ CameraActor に視点を切り替える。
@@ -117,6 +187,14 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void SetPlayer(UPlayer* InPlayer) override;
+
+	// 2026.10.06 Lee start
+	/** @brief Pawn 保持時：Cursor の実マップ参照を優先して取り込み、スキル初期化を依頼する。 */
+	virtual void OnPossess(APawn* InPawn) override;
+
+	/** @brief 破棄時：連移タイマーを確実に停止する。 */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	// 2026.10.06 Lee end
 
 private:
 	/** @brief 固定カメラの Actor をスポーンして SetViewTarget。 */
@@ -176,4 +254,36 @@ private:
 
 	/** @brief 自動リピート用タイマーハンドル。 */
 	FTimerHandle AutoRepeatHandle;
+
+	// 2026.10.06 Lee start（スキル入力と一時状態）
+	/** @brief 反転スキル IA の Started 処理（押下 1 回につき 1 回だけ試行）。 */
+	void OnSkillReverseStarted(const FInputActionValue& Value);
+
+	/** @brief 加速スキル IA の Started 処理（押下 1 回につき 1 回だけ試行）。 */
+	void OnSkillSpeedStarted(const FInputActionValue& Value);
+
+	/** @brief 反転スキル IA の Completed / Canceled 処理（解放で再武装）。 */
+	void OnSkillReverseReleased(const FInputActionValue& Value);
+
+	/** @brief 加速スキル IA の Completed / Canceled 処理（解放で再武装）。 */
+	void OnSkillSpeedReleased(const FInputActionValue& Value);
+
+	/** @brief 普通対戦の入力段階権限（チュートリアル等は true を返し従来フローを維持）。 */
+	bool IsGameplayActionAllowed() const;
+
+	/** @brief 準備が揃っていれば GameMode へスキル初期化を依頼する（冪等性は GameMode 側）。 */
+	void TryInitializeMatchSkillsIfReady();
+
+	/** @brief 反転スキル（LB）のスロット番号。 */
+	static constexpr int32 SkillSlotIndex_Reverse = 0;
+
+	/** @brief 加速スキル（RB）のスロット番号。 */
+	static constexpr int32 SkillSlotIndex_SpeedUp = 1;
+
+	/** @brief 反転スキルの再武装待ち（解放イベント後のみ Started を受付）。 */
+	bool bSkillReverseAwaitRelease = false;
+
+	/** @brief 加速スキルの再武装待ち（解放イベント後のみ Started を受付）。 */
+	bool bSkillSpeedAwaitRelease = false;
+	// 2026.10.06 Lee end
 };
