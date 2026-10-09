@@ -19,6 +19,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSkillStateChanged);
 /** @brief スキル使用の失敗通知。失敗時は回数・クールダウンへ影響しない。 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSkillUseFailed, int32, SlotIndex, ESkillUseResult, Result);
 
+// 2026.10.08 Lee start（教程用：成功使用の通知）
+/** @brief スキル使用の成功通知。回数消費・クールダウン開始が確定した後に放送される（失敗時は放送しない）。 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSkillUsed, int32, SlotIndex);
+// 2026.10.08 Lee end
+
 /**
  * @brief 各 Controller に 1 個ずつ装着するスキルスロット管理コンポーネント。
  *        実行時状態（残回数・クールダウン終了時刻）のみを保持し、効果本体は USkillDefinition に委ねる。
@@ -36,6 +41,12 @@ public:
 	/** @brief 使用失敗通知。失敗したスロット番号と理由を渡す。 */
 	UPROPERTY(BlueprintAssignable)
 	FOnSkillUseFailed OnSkillUseFailed;
+
+	// 2026.10.08 Lee start（教程用：成功使用の通知）
+	/** @brief 使用成功通知（引数 = スロット番号）。回数消費・クールダウン開始の確定後に一度だけ放送される。 */
+	UPROPERTY(BlueprintAssignable)
+	FOnSkillUsed OnSkillUsed;
+	// 2026.10.08 Lee end
 
 	/**
 	 * @brief 本試合のスキルを初期化する。同一局での再呼び出しは冪等で回数を補填しない。

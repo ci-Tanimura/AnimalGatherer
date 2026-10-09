@@ -464,6 +464,17 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	MapManagerRef->SetTileData(TargetCoords.X, TargetCoords.Y, Direction, OwnerId);
 	// 2026.09.25 Lee end
 	PlaceHistory.Add(TargetCoords);
+
+	// 2026.10.08 Lee start（教程用：実配置完了の通知。地図と履歴の更新が確定した後でのみ送る）
+	// 通常対戦では Cast が失敗するため何も起きない（チュートリアルの修復記録でのみ使用される）
+	// 2026.10.08 Lee 第三批修正 start（C4456: 同関数内の既存変数 TutorialGameMode (旧 426 行) との
+	//  名前衝突を解消するため変数名を変更）
+	if (ATutorialGameMode* TutorialModeForPlacement = Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		TutorialModeForPlacement->NotifyArrowPlaced(OwnerId, TargetCoords, Direction);
+	}
+	// 2026.10.08 Lee 第三批修正 end
+	// 2026.10.08 Lee end
 }
 
 //==============================================================================
@@ -643,6 +654,14 @@ bool AAnimalGatherPlayerController::IsGameplayActionAllowed() const
 	{
 		return Mode->IsGameplayInputAllowed();
 	}
+
+	// 2026.10.08 Lee 第三批修正 start（教程の Complete 中は移動・配置入力も停止する。
+	// それ以外の教程ステップは従来どおり許可）
+	if (const ATutorialGameMode* TutorialMode = Cast<ATutorialGameMode>(Mode))
+	{
+		return TutorialMode->GetCurrentStep() != ETutorialStep::Complete;
+	}
+	// 2026.10.08 Lee 第三批修正 end
 
 	// チュートリアル等は従来の段階制限フロー（IsPlacementAllowed 等）を維持する。
 	return true;

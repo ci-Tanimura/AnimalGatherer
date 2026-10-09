@@ -92,6 +92,17 @@ public:
 	void OnSpeedMultiplierChanged(float NewMultiplier);
 	// 2026.10.06 Lee end
 
+	// 2026.10.08 Lee start（教程用：読み取り済みセル中心の参照取得）
+	/**
+	 * @brief 実際に読み取った（中心に到達して処理した）直近セルのグリッド座標を返す。
+	 *         チュートリアルが演示動物の実際の経過判定に使う読み取り専用アクセサ。
+	 * @param OutGridCoords 読み取り済みセル座標（未読の場合は無効値）。
+	 * @return 一度でもセル中心を読み取ったことがある場合 true。
+	 */
+	UFUNCTION(BlueprintPure, Category = "Animal Movement")
+	bool GetLastReadGridCoords(FIntPoint& OutGridCoords) const;
+	// 2026.10.08 Lee end
+
 protected:
 	// 2026.10.06 Lee start（旧実装。現在はマス中心分割処理の新経路が使用するため未呼び出し。
 	// 既存の継承・デバッグ呼び出しを壊さないよう本体ごと保持する）
