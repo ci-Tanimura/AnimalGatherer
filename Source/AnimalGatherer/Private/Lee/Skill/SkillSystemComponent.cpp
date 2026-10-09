@@ -49,10 +49,16 @@ bool USkillSystemComponent::InitializeSkills(AMainGameMode* InMode, AMapManager*
 	{
 		return false;
 	}
-	if (!InMode->IsNormalMatch())
+	// 2026.10.08 Lee start（教程拡張：モード判定を IsNormalMatch から初期化支援判定へ変更）
+	// if (!InMode->IsNormalMatch())
+	// {
+	//     return false;
+	// }
+	if (!InMode->SupportsSkillInitialization())
 	{
 		return false;
 	}
+	// 2026.10.08 Lee end（教程拡張）
 	if (InMap->GetWorld() != GetWorld())
 	{
 		return false;
@@ -147,14 +153,27 @@ ESkillUseResult USkillSystemComponent::TryUseSkill(int32 SlotIndex)
 	{
 		Result = ESkillUseResult::NotPlaying;
 	}
-	else if (Mode == nullptr || !Mode->IsNormalMatch() || !Mode->IsMatchPlaying())
+	// 2026.10.08 Lee start（教程拡張：権限判定をモードの IsSkillUseAllowed（プレイヤー/スロット込み）へ統一。
+	//  エラー種別の維持のため Mode null → スロット範囲 → 権限の順で検証する）
+	// else if (Mode == nullptr || !Mode->IsNormalMatch() || !Mode->IsMatchPlaying())
+	// {
+	//     Result = ESkillUseResult::NotPlaying;
+	// }
+	else if (Mode == nullptr)
 	{
 		Result = ESkillUseResult::NotPlaying;
 	}
+	// 2026.10.08 Lee end（教程拡張）
 	else if (!Slots.IsValidIndex(SlotIndex))
 	{
 		Result = ESkillUseResult::InvalidSlot;
 	}
+	// 2026.10.08 Lee start（教程拡張：プレイヤー/スロット込みの権威判定）
+	else if (!Mode->IsSkillUseAllowed(PlayerId, SlotIndex))
+	{
+		Result = ESkillUseResult::NotPlaying;
+	}
+	// 2026.10.08 Lee end（教程拡張）
 	// 2026.10.06 Lee start（A範囲レビュー修正：実行前に毎回、OwnerPC の現在地図・現身分・Mode の確定地図との一致を検証）
 	else if (!IsContextValidForUse())
 	{
@@ -217,6 +236,11 @@ ESkillUseResult USkillSystemComponent::TryUseSkill(int32 SlotIndex)
 	}
 
 	OnSkillStateChanged.Broadcast();
+
+	// 2026.10.08 Lee start（教程用：成功確定後の使用通知。回数消費・クールダウン開始の後に一度だけ放送する）
+	OnSkillUsed.Broadcast(SlotIndex);
+	// 2026.10.08 Lee end（教程用）
+
 	return ESkillUseResult::Success;
 }
 
@@ -233,12 +257,18 @@ TArray<FSkillSlotSnapshot> USkillSystemComponent::GetSnapshot() const
 	const AMainGameMode* Mode = BoundMode.Get();
 	// 2026.10.06 Lee start（A範囲レビュー修正：スナップショットもコンテキスト有効性を検証）
 	// const bool bMatchPlaying = (Mode != nullptr) && Mode->IsMatchPlaying();
-	const bool bMatchPlaying = (Mode != nullptr) && Mode->IsMatchPlaying() && IsContextValidForUse();
+	// 2026.10.08 Lee start（教程拡張：権限がスロット別になるため循環外の一律計算を廃止し文脈検証のみ残す）
+	// const bool bMatchPlaying = (Mode != nullptr) && Mode->IsMatchPlaying() && IsContextValidForUse();
+	const bool bContextValid = IsContextValidForUse();
+	// 2026.10.08 Lee end（教程拡張）
 	// 2026.10.06 Lee end（A範囲レビュー修正）
 
 	Snapshots.Reserve(Slots.Num());
-	for (const FSkillSlot& Slot : Slots)
+	// 2026.10.08 Lee start（教程拡張：スロット別権威判定のためインデックス循環へ変更）
+	// for (const FSkillSlot& Slot : Slots)
+	for (int32 SlotIndex = 0; SlotIndex < Slots.Num(); ++SlotIndex)
 	{
+		const FSkillSlot& Slot = Slots[SlotIndex];
 		FSkillSlotSnapshot Snapshot;
 		Snapshot.Definition = Slot.Definition;
 		Snapshot.RemainingUses = Slot.RemainingUses;
@@ -249,7 +279,11 @@ TArray<FSkillSlotSnapshot> USkillSystemComponent::GetSnapshot() const
 		Snapshot.CooldownDuration = IsValid(Slot.Definition.Get()) ? Slot.Definition->CooldownSeconds : 0.0f;
 		// bCanUse は毎回権威値から再計算する（キャッシュや放送に依存しない）。
 		// Snapshot.bCanUse = bMatchPlaying && bEnabled && Slot.Definition.IsValid() && Slot.RemainingUses > 0 && CooldownRemaining <= 0.0f;
+		// 2026.10.08 Lee start（教程拡張：モード権限はプレイヤー/スロット込みで毎回権威判定する）
+		const bool bMatchPlaying = (Mode != nullptr) && Mode->IsSkillUseAllowed(PlayerId, SlotIndex) && bContextValid;
+		// Snapshot.bCanUse = bMatchPlaying && bEnabled && IsValid(Slot.Definition.Get()) && Slot.RemainingUses > 0 && CooldownRemaining <= 0.0f;
 		Snapshot.bCanUse = bMatchPlaying && bEnabled && IsValid(Slot.Definition.Get()) && Slot.RemainingUses > 0 && CooldownRemaining <= 0.0f;
+		// 2026.10.08 Lee end（教程拡張）
 		// 2026.10.06 Lee end（A範囲レビュー修正）
 		Snapshots.Add(Snapshot);
 	}

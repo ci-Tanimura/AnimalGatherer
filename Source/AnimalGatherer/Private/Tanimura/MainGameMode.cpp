@@ -580,7 +580,88 @@ void AMainGameMode::StopMatchingSpawners()
 
 bool AMainGameMode::TryInitializeMatchSkills()
 {
+    // 2026.10.08 Lee start（教程拡張：実初期化本体を protected InitializeSkillSystemsForMode へ抽出。
+    //  本入口は「普通対戦フローの Ready 中の再試行」という従来制約を維持する）
+    // 【旧実装（保持）】
+    // if (!bUseNormalMatchFlow || bSkillSystemsInitialized || MatchPhase != EMatchPhase::Ready)
+    // {
+    //     return bSkillSystemsInitialized;
+    // }
+    // UWorld* World = GetWorld();
+    // if (World == nullptr)
+    // {
+    //     return false;
+    // }
+    //
+    // // 実際の LocalPlayer 身分と PC バインド地図を揃えてから初期化する。
+    // AAnimalGatherPlayerController* PlayerControllers[2] = { nullptr, nullptr };
+    // AMapManager* PlayerMaps[2] = { nullptr, nullptr };
+    // for (int32 i = 0; i < 2; ++i)
+    // {
+    //     AAnimalGatherPlayerController* PC = Cast<AAnimalGatherPlayerController>(UGameplayStatics::GetPlayerController(World, i));
+    //     if (PC == nullptr)
+    //     {
+    //         return false; // まだ揃っていない：リトライで再試行
+    //     }
+    //     const uint8 SkillId = PC->GetSkillPlayerId();
+    //     // 2026.10.06 Lee A範囲手直し start（255 は未確定扱いで待機リトライ。0/1 以外の実値は警告の上リトライ継続）
+    //     // if (SkillId != static_cast<uint8>(i))
+    //     // {
+    //     //     UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: Player%d の身分が不正 (id=%u) のため技能を無効化します。"), i, SkillId);
+    //     //     GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
+    //     //     return false; // 身分不備は時間では解決しない
+    //     // }
+    //     if (SkillId == 255)
+    //     {
+    //         return false; // 未確定：Ready 中は待機してリトライする
+    //     }
+    //     if (SkillId != 0 && SkillId != 1)
+    //     {
+    //         UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: Player%d の身分が不正 (id=%u) です。"), i, SkillId);
+    //         return false;
+    //     }
+    //     if (SkillId != static_cast<uint8>(i))
+    //     {
+    //         UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: Player%d の身分が不一致 (id=%u) のため技能を無効化します。"), i, SkillId);
+    //         GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
+    //         return false; // 有効身分の不一致は時間では解決しない
+    //     }
+    //     // 2026.10.06 Lee A範囲手直し end
+    //     AMapManager* Map = PC->GetMapManager();
+    //     if (Map == nullptr)
+    //     {
+    //         return false; // 地図未注入：リトライで再試行
+    //     }
+    //     PlayerControllers[i] = PC;
+    //     PlayerMaps[i] = Map;
+    // }
+    //
+    // if (PlayerMaps[0] != PlayerMaps[1])
+    // {
+    //     UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 両者の地図が不一致のため、技能は無効のままとします。"));
+    //     GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
+    //     return false;
+    // }
+    // if (PlayerMaps[0]->GetWorld() != World || MatchSkillEffect == nullptr)
+    // {
+    //     return false;
+    // }
+    //
+    // 2026.10.08 Lee end
+
+    // 普通対戦フローの Ready 中のみ再試行入口として動作する（従来制約を維持し実初期化へ委譲）
     if (!bUseNormalMatchFlow || bSkillSystemsInitialized || MatchPhase != EMatchPhase::Ready)
+    {
+        return bSkillSystemsInitialized;
+    }
+    return InitializeSkillSystemsForMode();
+}
+
+// 2026.10.08 Lee start（教程拡張：TryInitializeMatchSkills から抽出した実初期化本体）
+bool AMainGameMode::InitializeSkillSystemsForMode()
+{
+    // 門番はモードの初期化支援と冪等フラグのみ。段階制約は呼び出し側の責務。
+    if (!SupportsSkillInitialization() || bSkillSystemsInitialized)
     {
         return bSkillSystemsInitialized;
     }
@@ -590,6 +671,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         return false;
     }
 
+    // 以下は旧 TryInitializeMatchSkills 本体からの准用（検証内容・順序は不変）。
     // 実際の LocalPlayer 身分と PC バインド地図を揃えてから初期化する。
     AAnimalGatherPlayerController* PlayerControllers[2] = { nullptr, nullptr };
     AMapManager* PlayerMaps[2] = { nullptr, nullptr };
@@ -598,7 +680,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         AAnimalGatherPlayerController* PC = Cast<AAnimalGatherPlayerController>(UGameplayStatics::GetPlayerController(World, i));
         if (PC == nullptr)
         {
-            return false; // まだ揃っていない：リトライで再試行
+            return false; // まだ揃っていない：未整備のため再試行可能
         }
         const uint8 SkillId = PC->GetSkillPlayerId();
         // 2026.10.06 Lee A範囲手直し start（255 は未確定扱いで待機リトライ。0/1 以外の実値は警告の上リトライ継続）
@@ -610,16 +692,16 @@ bool AMainGameMode::TryInitializeMatchSkills()
         // }
         if (SkillId == 255)
         {
-            return false; // 未確定：Ready 中は待機してリトライする
+            return false; // 未確定：呼び出し側の再試行で待機する
         }
         if (SkillId != 0 && SkillId != 1)
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: Player%d の身分が不正 (id=%u) です。"), i, SkillId);
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: Player%d の身分が不正 (id=%u) です。"), i, SkillId);
             return false;
         }
         if (SkillId != static_cast<uint8>(i))
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: Player%d の身分が不一致 (id=%u) のため技能を無効化します。"), i, SkillId);
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: Player%d の身分が不一致 (id=%u) のため技能を無効化します。"), i, SkillId);
             GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
             return false; // 有効身分の不一致は時間では解決しない
         }
@@ -627,7 +709,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         AMapManager* Map = PC->GetMapManager();
         if (Map == nullptr)
         {
-            return false; // 地図未注入：リトライで再試行
+            return false; // 地図未注入：呼び出し側の再試行で待機する
         }
         PlayerControllers[i] = PC;
         PlayerMaps[i] = Map;
@@ -635,7 +717,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
 
     if (PlayerMaps[0] != PlayerMaps[1])
     {
-        UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 両者の地図が不一致のため、技能は無効のままとします。"));
+        UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 両者の地図が不一致のため、技能は無効のままとします。"));
         GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
         return false;
     }
@@ -664,7 +746,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         USkillDef_ReverseArrows* ReverseAsset = Cast<USkillDef_ReverseArrows>(AssetDefinitions[0]);
         if (ReverseAsset == nullptr)
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 反転スロットの定義資産の型が不正のため、技能を無効化します（フォールバックしません）。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 反転スロットの定義資産の型が不正のため、技能を無効化します（フォールバックしません）。"));
             bDefinitionsValid = false;
         }
         else if (ReverseAsset->IsConfigurationValid())
@@ -674,7 +756,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         else
         // 2026.10.06 Lee HUD範囲手直し end
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 反転スキルの定義資産が不適切のため、技能を無効化します（フォールバックしません）。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 反転スキルの定義資産が不適切のため、技能を無効化します（フォールバックしません）。"));
             bDefinitionsValid = false;
         }
     }
@@ -688,7 +770,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 反転スキルの既定定義が不適切のため、技能を無効化します。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 反転スキルの既定定義が不適切のため、技能を無効化します。"));
             bDefinitionsValid = false;
         }
     }
@@ -699,7 +781,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         USkillDef_SpeedUpAnimals* SpeedAsset = Cast<USkillDef_SpeedUpAnimals>(AssetDefinitions[1]);
         if (SpeedAsset == nullptr)
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 加速スロットの定義資産の型が不正のため、技能を無効化します（フォールバックしません）。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 加速スロットの定義資産の型が不正のため、技能を無効化します（フォールバックしません）。"));
             bDefinitionsValid = false;
         }
         else if (SpeedAsset->IsConfigurationValid())
@@ -709,7 +791,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         else
         // 2026.10.06 Lee HUD範囲手直し end
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 加速スキルの定義資産が不適切のため、技能を無効化します（フォールバックしません）。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 加速スキルの定義資産が不適切のため、技能を無効化します（フォールバックしません）。"));
             bDefinitionsValid = false;
         }
     }
@@ -723,7 +805,7 @@ bool AMainGameMode::TryInitializeMatchSkills()
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::TryInitializeMatchSkills: 加速スキルの既定定義が不適切のため、技能を無効化します。"));
+            UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 加速スキルの既定定義が不適切のため、技能を無効化します。"));
             bDefinitionsValid = false;
         }
     }
@@ -750,12 +832,42 @@ bool AMainGameMode::TryInitializeMatchSkills()
     }
     if (!bAllInitialized)
     {
-        return false; // リトライで再試行
+        return false; // 未整備のため呼び出し側の再試行に委ねる
     }
 
     bSkillSystemsInitialized = true;
     GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
-    UE_LOG(LogTemp, Log, TEXT("AMainGameMode::TryInitializeMatchSkills: 両プレイヤーの技能を初期化しました。"));
+    UE_LOG(LogTemp, Log, TEXT("AMainGameMode::InitializeSkillSystemsForMode: 両プレイヤーの技能を初期化しました。"));
     return true;
 }
+// 2026.10.08 Lee end（教程拡張：実初期化本体の抽出）
+
+// 2026.10.08 Lee start（教程拡張用の共有権限インターフェースの既定実装）
+bool AMainGameMode::SupportsSkillInitialization() const
+{
+    // 既定は普通対戦フローのみ技能初期化を支援する
+    return bUseNormalMatchFlow;
+}
+
+bool AMainGameMode::IsSkillUseAllowed(uint8 PlayerId, int32 SlotIndex) const
+{
+    // 身分は 0/1、スロットは 0/1（反転/加速）のみ有効。それ以外は即拒否
+    if (PlayerId != 0 && PlayerId != 1)
+    {
+        return false;
+    }
+    if (SlotIndex != 0 && SlotIndex != 1)
+    {
+        return false;
+    }
+    // 既定は普通対戦の権威判定（Playing かつ截止時刻前）
+    return IsMatchPlaying();
+}
+
+bool AMainGameMode::IsSkillEffectContextActive() const
+{
+    // 既定は普通対戦の進行中のみ共有効果文脈を有効とする
+    return IsMatchPlaying();
+}
+// 2026.10.08 Lee end（教程拡張用の共有権限インターフェースの既定実装）
 // 2026.10.06 Lee end
