@@ -5,6 +5,10 @@
 #include "CoreMinimal.h"
 
 #include "GameFramework/Pawn.h"
+// 2026.10.08 Gu start
+// 動物がゴールに入った時再生するエフェクト
+#include "Particles/ParticleSystem.h"
+// 2026.10.08 Gu end
 #include "AnimalBase.generated.h"
 
 UCLASS()
@@ -71,6 +75,7 @@ public:
 	class USoundBase* GoalSound;
 	// 2026.07.31 Gu end
 
+<<<<<<< Updated upstream
 	// 2026.10.06 Lee start（共有加速・試合段階に対応する公開 API 群）
 	/** @brief 最終的なマップ参照と TileSize 確定後に共有加速状態へ冪等に接続する
 	 *         （新生動物は実行中の効果の残り時間を権威照会で引き継ぐ） */
@@ -102,6 +107,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Animal Movement")
 	bool GetLastReadGridCoords(FIntPoint& OutGridCoords) const;
 	// 2026.10.08 Lee end
+=======
+	// 2026.10.08 Gu start
+	// 動物がゴールに入った時再生するエフェクト
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	class UParticleSystem* GoalVFX;
+	// 2026.10.08 Gu end
+>>>>>>> Stashed changes
 
 protected:
 	// 2026.10.06 Lee start（旧実装。現在はマス中心分割処理の新経路が使用するため未呼び出し。
