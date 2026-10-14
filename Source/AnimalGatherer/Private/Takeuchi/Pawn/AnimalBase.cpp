@@ -6,6 +6,7 @@
 #include "Lee/MapManager.h"
 #include "Tanimura/GridInteractInterface.h"
 #include "Tanimura/MainGameMode.h"
+<<<<<<< Updated upstream
 // 2026.10.06 Lee start（共有加速の権威照会と sweep 結果検証に必要な依存を追加）
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
@@ -20,6 +21,12 @@ namespace
 	constexpr float CenterArrivalTolerance = 0.1f;
 }
 // 2026.10.06 Lee end
+=======
+// 2026.10.08 Gu start
+// 動物がゴールに入った時再生するエフェクト
+#include "Particles/ParticleSystem.h"
+// 2026.10.08 Gu end
+>>>>>>> Stashed changes
 
 AAnimalBase::AAnimalBase()
 {
@@ -251,6 +258,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			UGameplayStatics::PlaySound2D(this, GoalSound);
 		}
 		// 2026.07.31 Gu end
+		// 2026.10.08 Gu start
+		//動物がゴールに入った時再生するエフェクト
+		if (GoalVFX)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+		}
+		// 2026.10.08 Gu end
 		Destroy();
 		return;
 	}
@@ -269,6 +283,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			UGameplayStatics::PlaySound2D(this, GoalSound);
 		}
 		// 2026.07.31 Gu end
+		// 2026.10.08 Gu start
+		//動物がゴールに入った時再生するエフェクト
+		if (GoalVFX)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+		}
+		// 2026.10.08 Gu end
 		Destroy();
 		return;
 	}
