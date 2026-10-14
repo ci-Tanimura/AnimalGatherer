@@ -329,14 +329,53 @@ bool AAnimalBase::IsGoalScoringAllowed() const
 	return GameMode->IsScoringAllowed();
 }
 
+// 2026.10.08 Lee start（教程用：読み取り済みセル中心の参照取得）
+/**
+ * @brief 実際に読み取った直近セルのグリッド座標を返す読み取り専用アクセサ。
+ * @param OutGridCoords 読み取り済みセル座標（未読の場合は無効値）。
+ * @return 一度でもセル中心を読み取ったことがある場合 true。
+ */
+bool AAnimalBase::GetLastReadGridCoords(FIntPoint& OutGridCoords) const
+{
+	// 2026.10.09 Lee start（PIE 実機で ObserveReverse が進まない欠陥の修正。
+	// 新中心処理経路が更新する実記録は LastGridCoords + bProcessedLastGridCoords であり、
+	// 旧 bHasLastGridCoords は当該経路では更新されないため、getter の判定対象を
+	// bProcessedLastGridCoords へ変更する。座標の意味論は不変。旧判定は下記に保持）
+	// if (!bHasLastGridCoords)
+	// {
+	// 	OutGridCoords = FIntPoint::NoneValue;
+	// 	return false;
+	// }
+	if (!bProcessedLastGridCoords)
+	{
+		OutGridCoords = FIntPoint::NoneValue;
+		return false;
+	}
+	// 2026.10.09 Lee end
+	OutGridCoords = LastGridCoords;
+	return true;
+}
+// 2026.10.08 Lee end
+
 /** @brief 現在の権威倍率を照会する（本局・バインド済みマップ以外は常に 1.0） */
 float AAnimalBase::GetSpeedMultiplier() const
 {
 	const AMainGameMode* GameMode = Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this));
-	if (GameMode == nullptr || !GameMode->IsNormalMatch())
+	// 2026.10.08 Lee start（教程拡張：非普通モードも効果文脈が有効なら権威照会する。
+	// MainGameMode が無い独立テストは従来どおり 1.0）
+	// if (GameMode == nullptr || !GameMode->IsNormalMatch())
+	// {
+	//     return 1.0f;
+	// }
+	if (GameMode == nullptr)
 	{
 		return 1.0f;
 	}
+	if (!GameMode->IsSkillEffectContextActive())
+	{
+		return 1.0f;
+	}
+	// 2026.10.08 Lee end（教程拡張）
 
 	const UMatchSkillEffectComponent* MatchSkillEffect = GameMode->GetMatchSkillEffect();
 	if (MatchSkillEffect == nullptr)

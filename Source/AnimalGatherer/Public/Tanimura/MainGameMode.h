@@ -131,6 +131,31 @@ public:
 	bool TryInitializeMatchSkills();
 	// 2026.10.06 Lee end
 
+	// 2026.10.08 Lee start（教程拡張用の共有権限インターフェース）
+	/**
+	 * @brief このモードが技能システムの初期化を支援するか。
+	 *        既定は普通対戦フロー（bUseNormalMatchFlow）のみ true。教程側は覆写して許可する。
+	 * @return 初期化を支援する場合 true。
+	 */
+	virtual bool SupportsSkillInitialization() const;
+
+	/**
+	 * @brief 指定プレイヤー・スロットの技能使用が現時点で許可されるか。
+	 *        既定は身分 0/1・スロット 0/1 のみ有効とし、普通対戦の IsMatchPlaying 権威判定に従う。
+	 * @param PlayerId 使用を試みるプレイヤーID（0 = 1P / 1 = 2P）。
+	 * @param SlotIndex スロット番号（0 = 反転 / 1 = 加速）。
+	 * @return 許可される場合 true。不正な身分・スロットは false。
+	 */
+	virtual bool IsSkillUseAllowed(uint8 PlayerId, int32 SlotIndex) const;
+
+	/**
+	 * @brief 共有効果（加速）の効果文脈が現時点で有効か。
+	 *        既定は普通対戦の IsMatchPlaying に従う（Ready / Ended は無効）。
+	 * @return 効果文脈が有効な場合 true。
+	 */
+	virtual bool IsSkillEffectContextActive() const;
+	// 2026.10.08 Lee end
+
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
 	int32 P1Score;
@@ -251,4 +276,20 @@ private:
 	/** @brief 本試合と同地図の CachedAnimalSpawner 以外の Spawner を一括停止する。 */
 	void StopMatchingSpawners();
 	// 2026.10.06 Lee end
+
+	// 2026.10.08 Lee start（教程拡張：実初期化部の抽出）
+	// 2026.10.08 Lee 第二批修正 start（チュートリアル GameMode から呼ぶため宣言を private から protected へ移動。
+	//  旧 private 位置はコメントとして保持。以降に他の private メンバーは無い）
+	// private:
+	/**
+	 * @brief 技能システムの実初期化（プレイヤー/地図/World/定義検証 → MatchMap・共有効果バインド → 冪等初期化）。
+	 *        試合の開始（StartMatch・スポーナー起動・使用解禁）は行わない。
+	 *        門番は SupportsSkillInitialization と冪等フラグのみで、Ready 等の段階制約は
+	 *        呼び出し側（TryInitializeMatchSkills または教程側）の責務とする。
+	 * @return 双方の初期化が完了した場合 true。未整備時は false で再試行可能。
+	 */
+protected:
+	bool InitializeSkillSystemsForMode();
+	// 2026.10.08 Lee 第二批修正 end
+	// 2026.10.08 Lee end
 };

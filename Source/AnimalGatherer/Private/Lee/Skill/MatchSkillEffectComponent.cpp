@@ -86,7 +86,10 @@ bool UMatchSkillEffectComponent::ApplySpeedEffect(AMapManager* TargetMap, float 
 	// 1) 適用条件の検証（失敗時は状態を一切変更しない）
 	//==============================================================================
 	const AMainGameMode* Mode = Cast<AMainGameMode>(GetOwner());
-	if (Mode == nullptr || !Mode->IsMatchPlaying())
+	// 2026.10.08 Lee start（教程拡張：文脈判定をモードの IsSkillEffectContextActive へ変更）
+	// if (Mode == nullptr || !Mode->IsMatchPlaying())
+	if (Mode == nullptr || !Mode->IsSkillEffectContextActive())
+	// 2026.10.08 Lee end（教程拡張）
 	{
 		return false;
 	}
@@ -157,7 +160,10 @@ float UMatchSkillEffectComponent::GetSpeedMultiplierForMap(const AActor* MapActo
 	// 2026.10.06 Lee end（A範囲レビュー修正）
 
 	const AMainGameMode* Mode = Cast<AMainGameMode>(GetOwner());
-	if (Mode == nullptr || !Mode->IsMatchPlaying())
+	// 2026.10.08 Lee start（教程拡張：文脈判定をモードの IsSkillEffectContextActive へ変更）
+	// if (Mode == nullptr || !Mode->IsMatchPlaying())
+	if (Mode == nullptr || !Mode->IsSkillEffectContextActive())
+	// 2026.10.08 Lee end（教程拡張）
 	{
 		return 1.0f;
 	}
@@ -192,7 +198,10 @@ FMatchSpeedSnapshot UMatchSkillEffectComponent::GetSnapshot() const
 	// 2026.10.06 Lee start（動物側 GetSpeedMultiplierForMap と同じ権威条件で判定し表示を統一）
 	// if (Now < SpeedEffectEndTime)
 	const AMainGameMode* SnapshotMode = Cast<AMainGameMode>(GetOwner());
-	const bool bAuthorityValid = (BoundMap.Get() != nullptr) && (SnapshotMode != nullptr) && SnapshotMode->IsMatchPlaying();
+	// 2026.10.08 Lee start（教程拡張：文脈判定をモードの IsSkillEffectContextActive へ変更）
+	// const bool bAuthorityValid = (BoundMap.Get() != nullptr) && (SnapshotMode != nullptr) && SnapshotMode->IsMatchPlaying();
+	const bool bAuthorityValid = (BoundMap.Get() != nullptr) && (SnapshotMode != nullptr) && SnapshotMode->IsSkillEffectContextActive();
+	// 2026.10.08 Lee end（教程拡張）
 	if (bAuthorityValid && Now < SpeedEffectEndTime)
 	// 2026.10.06 Lee end（動物側 GetSpeedMultiplierForMap と同じ権威条件で判定し表示を統一）
 	{
