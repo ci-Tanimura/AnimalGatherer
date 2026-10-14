@@ -38,8 +38,12 @@ enum class ETutorialStep : uint8
 	ReverseSkill,
 	/** @brief 反転結果の観察（演示動物が返却セルを実際に読み取るのを待つ）。 */
 	ObserveReverse,
-	/** @brief 影響を受けたプレイヤーによる矢印修復（目標セルへの再配置）。 */
+	// 2026.10.14 Lee start（双方反転還元方式：本ステップは「施放者が反転スキルをもう一度施して
+	//  相手の矢印を元の向きへ戻す還元段階」へ意味を変更。列挙値と順序は不変。旧説明はコメント保持）
+	/** @brief 還元段階（現在の施放者が反転スキルの再施放で相手の干渉セルを元へ戻す）。 */
+	// /** @brief 影響を受けたプレイヤーによる矢印修復（目標セルへの再配置）。 ←元のコードは消さない
 	RepairArrow,
+	// 2026.10.14 Lee end
 	/** @brief 加速実習前の基線観察（閉環ルート上を通常速度で走らせる）。 */
 	SpeedBaseline,
 	/** @brief 加速スキルの実習（CurrentActivePlayerId の RB のみ解禁）。 */
@@ -183,14 +187,18 @@ public:
 	/** @brief チュートリアルは技能初期化を支援する（常に true）。 */
 	virtual bool SupportsSkillInitialization() const override;
 
+	// 2026.10.14 Lee start（還元段階の権限追加を注記に反映。旧説明はコメント保持）
 	/**
 	 * @brief 技能使用の許可。ReverseSkill 中は操作者の反転スロットのみ、
 	 *        SpeedSkill 中は操作者の加速スロットのみ許可する（成功受領後は即拒否）。
+	 *        2026.10.14 からは RepairArrow（還元）中も操作者の反転スロットのみ許可する。
 	 * @param PlayerId 使用を試みるプレイヤーID（0 = 1P / 1 = 2P）。
 	 * @param SlotIndex スロット番号（0 = 反転 / 1 = 加速）。
 	 * @return 許可される場合 true。
 	 */
+	// 【旧説明（保持）】ReverseSkill / SpeedSkill のみの記載であった。
 	virtual bool IsSkillUseAllowed(uint8 PlayerId, int32 SlotIndex) const override;
+	// 2026.10.14 Lee end
 
 	/**
 	 * @brief 共有効果の文脈。地図バインド済みかつ Complete 前は有効。
@@ -199,14 +207,18 @@ public:
 	 */
 	virtual bool IsSkillEffectContextActive() const override;
 
+	// 2026.10.14 Lee start（双方反転還元方式：本 API は記録動作を停止し互換のため署名のみ維持。
+	//  進行は反転スキルの実際成功のみで判定する。旧説明はコメント保持）
 	/**
 	 * @brief 実際の矢印配置完了の受領（PlayerController::PlaceDirection から呼ばれる）。
-	 *        修復段階で影響対象プレイヤー・目標セル・正解方向の配置のみ記録する。
+	 *        2026.10.14 以降はいずれの段階でも記録せず、即座に返す（旧の修復証拠記録は廃止）。
 	 * @param PlayerId 配置したプレイヤーID（0 = 1P / 1 = 2P）。
 	 * @param Cell 配置先セル。
 	 * @param Direction 配置した方向。
 	 */
+	// 【旧説明（保持）】修復段階で影響対象プレイヤー・目標セル・正解方向の配置のみ記録する。
 	void NotifyArrowPlaced(uint8 PlayerId, FIntPoint Cell, ETileType Direction);
+	// 2026.10.14 Lee end
 
 	/** @brief 現在の操作プレイヤーID（技能実習の施放者。0 = 1P / 1 = 2P）。 */
 	UFUNCTION(BlueprintPure, Category = "Tutorial|Skill")
@@ -349,8 +361,11 @@ private:
 	/** @brief ObserveReverse ステップの入口処理（演示動物の生成と返却セルの記録）。 */
 	void EnterObserveReverse();
 
-	/** @brief RepairArrow ステップの入口処理（実配置証拠の初期化）。 */
+	// 2026.10.14 Lee start（還元入口の説明を更新。旧説明はコメント保持）
+	/** @brief RepairArrow（還元）ステップの入口処理（成功門の再武装と技能可否の維持）。 */
+	// /** @brief RepairArrow ステップの入口処理（実配置証拠の初期化）。 ←元のコードは消さない
 	void EnterRepairArrow();
+	// 2026.10.14 Lee end
 
 	/** @brief SpeedBaseline ステップの入口処理（閉環化・基線動物の生成・観察タイマー）。 */
 	void EnterSpeedBaseline();
@@ -462,11 +477,25 @@ private:
 	/** @brief 現ステップの技能施放者（反転の影響対象は 1 - この値）。 */
 	uint8 CurrentActivePlayerId = 0;
 
+	// 2026.10.14 Lee start（返工：ReverseRound は 4 回の施放それぞれに 1 対 1 対応する 0..3 の施放番号。
+	//  0 = P1 の 1 回目反転（P2 矢印）/ 1 = P2 の 1 回目反転（P1 矢印）/
+	//  2 = P1 の還元（P2 矢印への 2 回目反転）/ 3 = P2 の還元（P1 矢印への 2 回目反転）。
+	//  旧の「ペア輪回 0/1」説明はコメント保持）
+	/** @brief 4 回の反転施放の番号（0..3）。0 = P1 の 1 回目反転（P2 矢印）、
+	 *         1 = P2 の 1 回目反転（P1 矢印）、2 = P1 の還元（P2 矢印）、3 = P2 の還元（P1 矢印）。
+	 *         CurrentActivePlayerId のみでの輪回判断を避けるための明示状態。 */
+	// 【旧説明（保持）】0 = 1P→2P の反転・観察・還元 / 1 = 2P→1P の反転・観察・還元 のペア輪回。
+	uint8 ReverseRound = 0;
+	// 2026.10.14 Lee end
+
 	/** @brief 現ステップの技能成功受領フラグ（受領時に即ロックし同フレームの再施放を拒む）。 */
 	bool bSkillAccepted = false;
 
-	/** @brief 修復段階での実配置証拠（NotifyArrowPlaced による本物の配置のみ true）。 */
+	// 2026.10.14 Lee start（還元方式では進行証拠として使用しない旨を注記。旧説明はコメント保持）
+	/** @brief 旧の修復配置証拠。2026.10.14 以降は進行に使用しない（NotifyArrowPlaced が記録しないため常時 false。互換で保持）。 */
+	// /** @brief 修復段階での実配置証拠（NotifyArrowPlaced による本物の配置のみ true）。 ←元のコードは消さない
 	bool bRepairPlacementRecorded = false;
+	// 2026.10.14 Lee end
 
 	/** @brief チュートリアル技能の初期化と委譲購読が完了済みか。 */
 	bool bTutorialSkillsInitialized = false;

@@ -196,22 +196,30 @@ bool ATutorialGameMode::IsPlacementAllowed(uint8 PlayerID, FIntPoint Cell) const
 	}
 	// 2026.10.08 Lee 返工 end
 
+	// 2026.10.14 Lee start（双方反転還元方式：還元段階は方向ボタンによる再配置を一切受理しない。
+	//  還元は現在の施放者の反転スキルの実際成功のみで進むため、配置経路を閉じる。旧実装はコメント保持）
 	// 修復段階は影響を受けたプレイヤーが自分の干渉セルへ配置する場合のみ許可する
+	// if (CurrentStep == ETutorialStep::RepairArrow)
+	// {
+	// 	const FTutorialStepDef* Def = GetCurrentStepDef();
+	// 	if (!Def)
+	// 	{
+	// 		return false;
+	// 	}
+	// 	const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
+	// 	if (PlayerID != AffectedPlayerId)
+	// 	{
+	// 		return false;
+	// 	}
+	// 	const FIntPoint AllowedCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
+	// 	return Cell == AllowedCell;
+	// }
 	if (CurrentStep == ETutorialStep::RepairArrow)
 	{
-		const FTutorialStepDef* Def = GetCurrentStepDef();
-		if (!Def)
-		{
-			return false;
-		}
-		const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
-		if (PlayerID != AffectedPlayerId)
-		{
-			return false;
-		}
-		const FIntPoint AllowedCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
-		return Cell == AllowedCell;
+		// 還元段階は配置不許可（LB スキルの再施放のみで還元する）
+		return false;
 	}
+	// 2026.10.14 Lee end
 
 	// Intro / Complete / 技能実習ステップ（観察・基線を含む）は一切の配置を禁止する
 	return false;
@@ -371,24 +379,59 @@ void ATutorialGameMode::TickSkillStepCheck()
 		break;
 	}
 
+	// 2026.10.14 Lee start（双方反転還元方式：還元の進行条件を 3 点確認へ変更。
+	//  ①施放者の反転スキル実際成功（HandleSkillUsed 受領）②相手目標セルが期待方向・所有者へ戻った
+	//  ③そのセルが相手の実配置履歴に残る。方向再配置証拠（bRepairPlacementRecorded）は進行に使わない。
+	//  旧実装はコメントとして保持）
 	case ETutorialStep::RepairArrow:
 	{
-		// 実配置証拠（NotifyArrowPlaced）と地図状態の双方で修復を確認する
-		const FTutorialStepDef* Def = GetCurrentStepDef();
-		if (!Def || !CachedMapManager || !bRepairPlacementRecorded)
+		// 【旧実装（保持）】実配置証拠（NotifyArrowPlaced）と地図状態の双方で修復を確認する
+		// const FTutorialStepDef* Def = GetCurrentStepDef();
+		// if (!Def || !CachedMapManager || !bRepairPlacementRecorded)
+		// {
+		// 	break;
+		// }
+		// const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
+		// const FIntPoint TargetCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
+		// const ETileType ExpectedDir = (AffectedPlayerId == 0) ? Def->P1ExpectedDirection : Def->P2ExpectedDirection;
+		// if (CachedMapManager->GetCellState_Implementation(TargetCell) == ExpectedDir
+		// 	&& CachedMapManager->GetTileOwner(TargetCell.X, TargetCell.Y) == AffectedPlayerId)
+		// {
+		// 	AdvanceStep();
+		// }
+		// break;
+
+		// ①成功受領が無ければ次のポーリングで待つ（定時跳過はしない）
+		if (!bSkillAccepted)
 		{
 			break;
 		}
+		const FTutorialStepDef* Def = GetCurrentStepDef();
+		if (Def == nullptr || CachedMapManager == nullptr)
+		{
+			break;
+		}
+		// 還元対象は今回も対戦相手（1 - 施放者）の干渉セル
 		const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
 		const FIntPoint TargetCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
 		const ETileType ExpectedDir = (AffectedPlayerId == 0) ? Def->P1ExpectedDirection : Def->P2ExpectedDirection;
-		if (CachedMapManager->GetCellState_Implementation(TargetCell) == ExpectedDir
-			&& CachedMapManager->GetTileOwner(TargetCell.X, TargetCell.Y) == AffectedPlayerId)
+		// ②期待方向・所有者の確認（反転スキルは所有者を維持するため一致するはず）
+		if (CachedMapManager->GetCellState_Implementation(TargetCell) != ExpectedDir
+			|| CachedMapManager->GetTileOwner(TargetCell.X, TargetCell.Y) != AffectedPlayerId)
 		{
-			AdvanceStep();
+			break;
 		}
+		// ③実配置履歴の確認：相手 Controller の有効配置座標に目的セルが残っていること
+		const AAnimalGatherPlayerController* AffectedPC = Cast<AAnimalGatherPlayerController>(
+			UGameplayStatics::GetPlayerController(GetWorld(), AffectedPlayerId));
+		if (AffectedPC == nullptr || !AffectedPC->GetOwnedPlacedArrowCoords(AffectedPlayerId).Contains(TargetCell))
+		{
+			break;
+		}
+		AdvanceStep();
 		break;
 	}
+	// 2026.10.14 Lee end
 
 	// 2026.10.08 Lee 第三批修正 start（基線動物の生成失敗時の再試行）
 	case ETutorialStep::SpeedBaseline:
@@ -507,14 +550,51 @@ void ATutorialGameMode::AdvanceStep()
 	case ETutorialStep::Complete:    return;
 	// 2026.10.08 Lee start（教程拡張：技能実習の遷移）
 	case ETutorialStep::ReverseSkill:  NextStep = ETutorialStep::ObserveReverse; break;
-	case ETutorialStep::ObserveReverse: NextStep = ETutorialStep::RepairArrow; break;
-	case ETutorialStep::RepairArrow:
-		// 観察動物を片付けてから役割を交換する（1 回目は反転の 2 回目へ、2 回目は加速へ）
-		ClearRuntimeAnimals();
-		if (CurrentActivePlayerId == 0)
+	// 2026.10.14 Lee start（返工：正しい六ステップ順——両者の反転を連続で行い、その後に両者の還元を連続で行う。
+	//  輪回 0 の観察の次は RepairArrow ではなく 2P の反転（ReverseSkill）へ進む。旧実装はコメント保持）
+	// case ETutorialStep::ObserveReverse: NextStep = ETutorialStep::RepairArrow; break;
+	case ETutorialStep::ObserveReverse:
+		// 輪回 0（P1 の反転・観察）完了 → P2 の反転（輪回 1）へ。
+		// 輪回 1（P2 の反転・観察）完了 → P1 の還元（輪回 2、RepairArrow）へ
+		if (ReverseRound == 0)
 		{
 			CurrentActivePlayerId = 1;
+			ReverseRound = 1;
 			NextStep = ETutorialStep::ReverseSkill;
+		}
+		else
+		{
+			CurrentActivePlayerId = 0;
+			ReverseRound = 2;
+			NextStep = ETutorialStep::RepairArrow;
+		}
+		break;
+	// 2026.10.14 Lee end
+	// 2026.10.14 Lee start（返工：還元は連続 2 回。輪回 2（P1 の還元）完了で 2P の還元（輪回 3）へ、
+	//  輪回 3（P2 の還元）完了で加速の基線観察へ。旧実装はコメントとして保持）
+	case ETutorialStep::RepairArrow:
+	{
+		// 【旧実装（保持）】
+		// 観察動物を片付けてから役割を交換する（1 回目は反転の 2 回目へ、2 回目は加速へ）
+		// ClearRuntimeAnimals();
+		// if (CurrentActivePlayerId == 0)
+		// {
+		// 	CurrentActivePlayerId = 1;
+		// 	ReverseRound = 1;
+		// 	NextStep = ETutorialStep::ReverseSkill;
+		// }
+		// else
+		// {
+		// 	CurrentActivePlayerId = 0;
+		// 	NextStep = ETutorialStep::SpeedBaseline;
+		// }
+		// 観察動物を片付けてから次の還元（または基線観察）へ進む
+		ClearRuntimeAnimals();
+		if (ReverseRound == 2)
+		{
+			CurrentActivePlayerId = 1;
+			ReverseRound = 3;
+			NextStep = ETutorialStep::RepairArrow;
 		}
 		else
 		{
@@ -522,6 +602,8 @@ void ATutorialGameMode::AdvanceStep()
 			NextStep = ETutorialStep::SpeedBaseline;
 		}
 		break;
+	}
+	// 2026.10.14 Lee end
 	case ETutorialStep::SpeedBaseline:  NextStep = ETutorialStep::SpeedSkill; break;
 	case ETutorialStep::SpeedSkill:     NextStep = ETutorialStep::ObserveSpeed; break;
 	case ETutorialStep::ObserveSpeed:   NextStep = ETutorialStep::SpeedRecovered; break;
@@ -884,6 +966,15 @@ bool ATutorialGameMode::IsSkillUseAllowed(uint8 PlayerId, int32 SlotIndex) const
 	{
 		return true;
 	}
+	// 2026.10.14 Lee start（双方反転還元方式：還元段階も現在の施放者の反転スロットのみ許可する。
+	//  正規の反転スキル経路そのものであり、回数・クールダウンは通常どおり消費する）
+	if (CurrentStep == ETutorialStep::RepairArrow
+		&& SlotIndex == SkillSlotIndex_Reverse
+		&& PlayerId == CurrentActivePlayerId)
+	{
+		return true;
+	}
+	// 2026.10.14 Lee end
 	if (CurrentStep == ETutorialStep::SpeedSkill
 		&& SlotIndex == SkillSlotIndex_Speed
 		&& PlayerId == CurrentActivePlayerId)
@@ -907,30 +998,36 @@ void ATutorialGameMode::NotifyArrowPlaced(uint8 PlayerId, FIntPoint Cell, ETileT
 	{
 		return;
 	}
+	// 2026.10.14 Lee start（双方反転還元方式：還元段階では方向再配置をいかなる証拠としても受理しない。
+	//  進行は現在の施放者の反転スキルの実際成功のみ。配置通知は無視し、進めない・記録しない。
+	//  旧実装（配置証拠の記録）は到達しないため全文コメントとして保持）
+	return;
+	// 【旧実装（保持・到達しない）】
 	// 影響を受けたプレイヤー（反転の対象 = 1 - 施放者）の配置のみが修復操作
-	const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
-	if (PlayerId != AffectedPlayerId)
-	{
-		return;
-	}
-	const FTutorialStepDef* Def = GetCurrentStepDef();
-	if (!Def)
-	{
-		return;
-	}
+	// const uint8 AffectedPlayerId = 1u - CurrentActivePlayerId;
+	// if (PlayerId != AffectedPlayerId)
+	// {
+	// 	return;
+	// }
+	// const FTutorialStepDef* Def = GetCurrentStepDef();
+	// if (!Def)
+	// {
+	// 	return;
+	// }
 	// 目標セル・正解方向の配置のみ実修復証拠として記録する
-	const FIntPoint TargetCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
-	if (Cell != TargetCell)
-	{
-		return;
-	}
-	const ETileType ExpectedDir = (AffectedPlayerId == 0) ? Def->P1ExpectedDirection : Def->P2ExpectedDirection;
-	if (Direction != ExpectedDir)
-	{
-		return;
-	}
-	bRepairPlacementRecorded = true;
-	UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] 修復配置を記録: Player%u が (%d, %d) へ配置"), PlayerId, Cell.X, Cell.Y);
+	// const FIntPoint TargetCell = (AffectedPlayerId == 0) ? Def->P1TargetCell : Def->P2TargetCell;
+	// if (Cell != TargetCell)
+	// {
+	// 	return;
+	// }
+	// const ETileType ExpectedDir = (AffectedPlayerId == 0) ? Def->P1ExpectedDirection : Def->P2ExpectedDirection;
+	// if (Direction != ExpectedDir)
+	// {
+	// 	return;
+	// }
+	// bRepairPlacementRecorded = true;
+	// UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] 修復配置を記録: Player%u が (%d, %d) へ配置"), PlayerId, Cell.X, Cell.Y);
+	// 2026.10.14 Lee end
 }
 
 uint8 ATutorialGameMode::GetCurrentActivePlayerId() const
@@ -956,8 +1053,12 @@ bool ATutorialGameMode::IsTutorialPlayerDone(uint8 PlayerId) const
 		// 観察中は施放者側が完了扱い（効果の帰結を待つのは全体）
 		return PlayerId == CurrentActivePlayerId;
 	case ETutorialStep::RepairArrow:
+		// 2026.10.14 Lee start（還元段階の達成＝現在の施放者の反転スキル成功受領。
+		//  待ち側は対戦相手（影響対象）ではなく施放者の完了を待つ。旧実装はコメント保持）
 		// 修復担当は影響を受けたプレイヤー
-		return PlayerId == (1u - CurrentActivePlayerId) && bRepairPlacementRecorded;
+		// return PlayerId == (1u - CurrentActivePlayerId) && bRepairPlacementRecorded;
+		return PlayerId == CurrentActivePlayerId && bSkillAccepted;
+		// 2026.10.14 Lee end
 	default:
 		return false;
 	}
@@ -1053,6 +1154,12 @@ void ATutorialGameMode::HandleSkillUsed(int32 SlotIndex)
 	{
 		bSkillAccepted = true;
 	}
+	// 2026.10.14 Lee start（双方反転還元方式：還元段階の反転成功も受領する（Tick の 3 点確認で推進））
+	else if (CurrentStep == ETutorialStep::RepairArrow && SlotIndex == SkillSlotIndex_Reverse)
+	{
+		bSkillAccepted = true;
+	}
+	// 2026.10.14 Lee end
 	else if (CurrentStep == ETutorialStep::SpeedSkill && SlotIndex == SkillSlotIndex_Speed)
 	{
 		bSkillAccepted = true;
@@ -1184,6 +1291,9 @@ void ATutorialGameMode::EnterReverseSkill()
 	bSkillAccepted = false;
 	TryInitializeTutorialSkills();
 	SetTutorialSkillsEnabled(true);
+	// 2026.10.14 Lee start（還元フロー：4 施放の実際順序をログで追跡可能にする）
+	UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] 反転段階へ移行: 輪回=%u 施放者=Player%u"), ReverseRound, CurrentActivePlayerId);
+	// 2026.10.14 Lee end
 }
 
 void ATutorialGameMode::EnterObserveReverse()
@@ -1225,8 +1335,16 @@ void ATutorialGameMode::EnterObserveReverse()
 
 void ATutorialGameMode::EnterRepairArrow()
 {
+	// 2026.10.14 Lee start（還元入口：成功門を一度だけ再武装し、技能可否を true に維持する。
+	//  回数・クールダウンはリセットしない（CD 中の押下は CoolingDown 失敗で消費しないため、
+	//  HUD が CD 待ちを案内する）。旧実装はコメント保持）
 	// 実配置証拠を初期化する（予め正しいセルでは代用しない）
+	// bRepairPlacementRecorded = false;
 	bRepairPlacementRecorded = false;
+	bSkillAccepted = false;
+	SetTutorialSkillsEnabled(true);
+	UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] 還元段階へ移行: 輪回=%u 施放者=Player%u"), ReverseRound, CurrentActivePlayerId);
+	// 2026.10.14 Lee end
 }
 
 void ATutorialGameMode::EnterSpeedBaseline()
