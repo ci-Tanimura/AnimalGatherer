@@ -21,6 +21,11 @@ namespace
 }
 // 2026.10.06 Lee end
 
+// 2026.10.08 Gu start
+// 動物がゴールに入った時再生するエフェクト
+#include "Particles/ParticleSystem.h"
+// 2026.10.08 Gu end
+
 AAnimalBase::AAnimalBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -251,6 +256,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			UGameplayStatics::PlaySound2D(this, GoalSound);
 		}
 		// 2026.07.31 Gu end
+		// 2026.10.08 Gu start
+		//動物がゴールに入った時再生するエフェクト
+		if (GoalVFX)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+		}
+		// 2026.10.08 Gu end
 		Destroy();
 		return;
 	}
@@ -269,6 +281,13 @@ void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
 			UGameplayStatics::PlaySound2D(this, GoalSound);
 		}
 		// 2026.07.31 Gu end
+		// 2026.10.08 Gu start
+		//動物がゴールに入った時再生するエフェクト
+		if (GoalVFX)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+		}
+		// 2026.10.08 Gu end
 		Destroy();
 		return;
 	}
@@ -702,6 +721,14 @@ bool AAnimalBase::HandleGoalTile(int32 ScoringPlayerId)
 		UGameplayStatics::PlaySound2D(this, GoalSound);
 	}
 	// 2026.07.31 Gu end
+
+	// 2026.10.14 Lee start
+	/** @brief 有効なゴール処理経路で、破棄前にエフェクトを一度だけ再生する。 */
+	if (GoalVFX)
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+	}
+	// 2026.10.14 Lee end
 
 	Destroy();
 	return true;

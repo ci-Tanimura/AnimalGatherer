@@ -5,6 +5,10 @@
 #include "CoreMinimal.h"
 
 #include "GameFramework/Pawn.h"
+// 2026.10.08 Gu start
+// 動物がゴールに入った時再生するエフェクト
+#include "Particles/ParticleSystem.h"
+// 2026.10.08 Gu end
 #include "AnimalBase.generated.h"
 
 UCLASS()
@@ -102,6 +106,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Animal Movement")
 	bool GetLastReadGridCoords(FIntPoint& OutGridCoords) const;
 	// 2026.10.08 Lee end
+
+	// 2026.10.08 Gu start
+	// 動物がゴールに入った時再生するエフェクト
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	class UParticleSystem* GoalVFX;
+	// 2026.10.08 Gu end
 
 protected:
 	// 2026.10.06 Lee start（旧実装。現在はマス中心分割処理の新経路が使用するため未呼び出し。
