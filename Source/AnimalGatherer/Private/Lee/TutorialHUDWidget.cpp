@@ -546,10 +546,22 @@ void UTutorialHUDWidget::RefreshStepTexts()
 		Title = FText::FromString(TEXT("反転を観察"));
 		Objective = FText::FromString(TEXT("動物の流れが変わる様子を見よう"));
 		break;
+	// 2026.10.14 Lee start（双方反転還元方式：施放者と対象を明示した還元提示。旧文言はコメント保持）
 	case ETutorialStep::RepairArrow:
-		Title = FText::FromString(TEXT("矢印を直そう"));
-		Objective = FText::FromString(TEXT("元の向きの矢印を置き直そう"));
+	{
+		Title = FText::FromString(TEXT("矢印をもとに戻そう"));
+		const FString CasterLabel = (GameMode->GetCurrentActivePlayerId() == 0) ? TEXT("1P") : TEXT("2P");
+		const FString TargetLabel = (GameMode->GetCurrentActivePlayerId() == 0) ? TEXT("2P") : TEXT("1P");
+		Objective = FText::FromString(FString::Printf(
+			TEXT("%s がもう一度 LB で %s の矢印を反転して元に戻そう"), *CasterLabel, *TargetLabel));
 		break;
+	}
+	// 【旧実装（保持）】
+	// case ETutorialStep::RepairArrow:
+	// 	Title = FText::FromString(TEXT("矢印を直そう"));
+	// 	Objective = FText::FromString(TEXT("元の向きの矢印を置き直そう"));
+	// 	break;
+	// 2026.10.14 Lee end
 	case ETutorialStep::SpeedBaseline:
 		Title = FText::FromString(TEXT("通常速度の確認"));
 		Objective = FText::FromString(TEXT("今の動物の速さをよく見ておこう"));
@@ -587,7 +599,7 @@ UTutorialHUDWidget::FParticipantDisplay UTutorialHUDWidget::ComputeParticipantDi
 	}
 	const ETutorialStep Step = GameMode->GetCurrentStep();
 	const uint8 ActiveId = GameMode->GetCurrentActivePlayerId();
-	const uint8 AffectedId = 1u - ActiveId;
+	// const uint8 AffectedId = 1u - ActiveId; // 2026.10.14 還元方式では未使用（旧実装の保持）
 	// 2026.10.09 Lee start（権威 IsTutorialPlayerDone の参照。達成側は入力強調を消す）
 	const bool bPlayerDone = GameMode->IsTutorialPlayerDone(PlayerId);
 	// 2026.10.09 Lee end
@@ -630,17 +642,30 @@ UTutorialHUDWidget::FParticipantDisplay UTutorialHUDWidget::ComputeParticipantDi
 			Display.bWaiting = true;
 		}
 		break;
+	// 2026.10.14 Lee start（還元段階：操作担当は現在の施放者、LB を強調する。待ち側は施放者を待つ。
+	//  旧実装（影響対象が方向ボタンで修復）はコメント保持）
 	case ETutorialStep::RepairArrow:
-		if (PlayerId == AffectedId)
+		// 【旧実装（保持）】
+		// if (PlayerId == AffectedId)
+		// {
+		// 	Display.bActive = true;
+		// 	Display.ControlHighlight = DirectionToButton(GameMode->GetExpectedDirectionFor(AffectedId));
+		// }
+		// else
+		// {
+		// 	Display.bWaiting = true;
+		// }
+		if (PlayerId == ActiveId)
 		{
 			Display.bActive = true;
-			Display.ControlHighlight = DirectionToButton(GameMode->GetExpectedDirectionFor(AffectedId));
+			Display.ControlHighlight = FName(TEXT("LB"));
 		}
 		else
 		{
 			Display.bWaiting = true;
 		}
 		break;
+	// 2026.10.14 Lee end
 	case ETutorialStep::SpeedSkill:
 		if (PlayerId == ActiveId)
 		{
@@ -725,6 +750,41 @@ FText UTutorialHUDWidget::ComputeSideTaskText(uint8 PlayerId) const
 			return FText::FromString(TEXT("達成！\n引き続き動物の様子を観察してください"));
 		}
 	}
+	// 2026.10.14 Lee start（還元段階の任務文言：施放者側は「もう一度 LB で反転して元に戻す」を明示し、
+	//  CD 中は待つよう案内する（CD 中の押下は失敗し消費しないため、長押しのキャッシュもない）。
+	//  待ち側は現在の施放者を待つ（影響対象の修復待ちではない）。旧文言はコメント保持）
+	if (Step == ETutorialStep::RepairArrow)
+	{
+		const uint8 RepairCasterId = GameMode->GetCurrentActivePlayerId();
+		const FString CasterLabel = (RepairCasterId == 0) ? TEXT("1P") : TEXT("2P");
+		if (PlayerId != RepairCasterId)
+		{
+			// 待ち側：現在の施放者の還元操作を待つ
+			return FText::FromString(FString::Printf(TEXT("%s の操作を待っています"), *CasterLabel));
+		}
+		if (bPlayerDone)
+		{
+			// 施放成功受領済み（輪回ポーリングによる段階切替待ち）
+			return FText::FromString(TEXT("達成！"));
+		}
+		// 施放者の反転スロットのクールダウン残り（権威値）。CD 中は押しても失敗するため案内する
+		float ReverseCooldown = 0.0f;
+		if (const AAnimalGatherPlayerController* CasterPC = Cast<AAnimalGatherPlayerController>(
+			UGameplayStatics::GetPlayerController(GetWorld(), RepairCasterId)))
+		{
+			if (const USkillSystemComponent* CasterSkill = CasterPC->GetSkillSystemComponent())
+			{
+				ReverseCooldown = CasterSkill->GetCooldownRemaining(0);
+			}
+		}
+		if (ReverseCooldown > 0.0f)
+		{
+			return FText::FromString(FString::Printf(
+				TEXT("あいての矢印をもう一度 LB で反転して\n元に戻そう\n（CD 残り %.0f 秒…待ってから押そう）"), ReverseCooldown));
+		}
+		return FText::FromString(TEXT("あいての矢印を\nもう一度 LB で反転して\n元に戻そう"));
+	}
+	// 2026.10.14 Lee end
 	// 2026.10.09 Lee end
 
 	const FParticipantDisplay Display = ComputeParticipantDisplay(PlayerId);
@@ -747,10 +807,12 @@ FText UTutorialHUDWidget::ComputeSideTaskText(uint8 PlayerId) const
 		{
 		case ETutorialStep::RepairArrow:
 		{
+			// 2026.10.14 Lee start（還元方式では上の専用分岐で先行 return するため本ケースには到達しない（旧文言の保持））
 			// 修復担当は反転の影響を受けた側（1 - 操作者）
 			const uint8 RepairPlayerId = 1u - ActiveId;
 			const FString RepairLabel = (RepairPlayerId == 0) ? TEXT("1P") : TEXT("2P");
 			return FText::FromString(FString::Printf(TEXT("%s が矢印を直すのを待っています"), *RepairLabel));
+			// 2026.10.14 Lee end
 		}
 		case ETutorialStep::ObserveReverse:
 			// 反転観察は両側に観察を促す（技能入力の待ちではない）
