@@ -718,7 +718,11 @@ bool AAnimalBase::HandleGoalTile(int32 ScoringPlayerId)
 	// ゴールの効果音再生
 	if (GoalSound)
 	{
-		UGameplayStatics::PlaySound2D(this, GoalSound);
+		// 2026.10.14 Takeuchi start
+		/** @brief 旧呼び出しをコメントとして保持する。 */
+		// UGameplayStatics::PlaySound2D(this, GoalSound);
+		UGameplayStatics::PlaySound2D(this, GoalSound, 1.0f, 1.0f, 0.0f, GoalSoundConcurrency, nullptr, false);
+		// 2026.10.14 Takeuchi end
 	}
 	// 2026.07.31 Gu end
 

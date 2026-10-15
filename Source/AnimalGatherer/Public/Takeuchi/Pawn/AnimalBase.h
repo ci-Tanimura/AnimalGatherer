@@ -11,6 +11,8 @@
 // 2026.10.08 Gu end
 #include "AnimalBase.generated.h"
 
+class USoundConcurrency;
+
 UCLASS()
 class ANIMALGATHERER_API AAnimalBase : public APawn
 {
@@ -74,6 +76,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
 	class USoundBase* GoalSound;
 	// 2026.07.31 Gu end
+
+	// 2026.10.14 Takeuchi start
+	/** @brief 全動物の Goal 音に適用するグローバル並発設定。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
+	USoundConcurrency* GoalSoundConcurrency = nullptr;
+	// 2026.10.14 Takeuchi end
 
 	// 2026.10.06 Lee start（共有加速・試合段階に対応する公開 API 群）
 	/** @brief 最終的なマップ参照と TileSize 確定後に共有加速状態へ冪等に接続する

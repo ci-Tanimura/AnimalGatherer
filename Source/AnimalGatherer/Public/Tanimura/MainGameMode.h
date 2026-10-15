@@ -13,6 +13,8 @@
 // 2026.07.24 Lee start
 class ACursorPawn;
 // 2026.07.24 Lee end
+class USoundBase;
+class USoundConcurrency;
 
 // 2026.10.06 Lee start（技能システム用の前方宣言）
 class AMapManager;
@@ -179,6 +181,24 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Audio")
 	USoundBase* TimeUpSound;
 
+	// 2026.10.14 Tanimura start
+	/** @brief Ready 中の実際の正数カウントダウン変化で再生する効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameMode|Audio")
+	USoundBase* ReadyTickSound = nullptr;
+
+	/** @brief 普通対戦が Ready から Playing へ移行した時に再生する効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameMode|Audio")
+	USoundBase* MatchStartSound = nullptr;
+
+	/** @brief 普通対戦中、残り 5 秒から 1 秒の実変化で再生する効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameMode|Audio")
+	USoundBase* FinalTickSound = nullptr;
+
+	/** @brief Ready/開始/末秒/終了の共有グローバル並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameMode|Audio")
+	USoundConcurrency* MatchEventConcurrency = nullptr;
+	// 2026.10.14 Tanimura end
+
 	// タイムアップSEが鳴ってからレベル遷移するまでの待ち時間（秒）
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GameMode|Flow")
 	float TimeUpDelay = 1.0f;
@@ -217,6 +237,20 @@ private:
 
 	// 現在の残り時間
 	int32 TimeRemaining;
+
+	// 2026.10.14 Tanimura start
+	/** @brief 既に再生した Ready カウント値（表示スナップショットからの重複を防ぐ）。 */
+	int32 LastPlayedReadyTickValue = INDEX_NONE;
+
+	/** @brief 既に再生した末秒値（同一値の再通知では再生しない）。 */
+	int32 LastPlayedFinalTickValue = INDEX_NONE;
+
+	/** @brief 正数かつ新しい Ready 値に限ってカウント音を再生する。 */
+	void PlayReadyTickIfNeeded(int32 CountdownValue);
+
+	/** @brief 試合イベント音をグローバル並発設定で再生する。 */
+	void PlayMatchEventSound(USoundBase* Sound) const;
+	// 2026.10.14 Tanimura end
 
 	// 開始カウントダウン用のタイマーハンドル
 	FTimerHandle ReadyTimerHandle;
