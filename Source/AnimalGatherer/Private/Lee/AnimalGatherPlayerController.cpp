@@ -102,6 +102,14 @@ void AAnimalGatherPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 2026.10.14 Lee start
+	if (SkillSystemComponent != nullptr)
+	{
+		SkillSystemComponent->OnSkillUsed.AddUniqueDynamic(this, &AAnimalGatherPlayerController::HandleSkillUsed);
+		SkillSystemComponent->OnSkillUseFailed.AddUniqueDynamic(this, &AAnimalGatherPlayerController::HandleSkillUseFailed);
+	}
+	// 2026.10.14 Lee end
+
 	// MapManager をワールドから検索してキャッシュ
 	if (!MapManagerRef)
 	{
@@ -318,6 +326,11 @@ void AAnimalGatherPlayerController::PerformMoveInDirection(const FVector2D& Inpu
 		return;
 	}
 
+	// 2026.10.14 Lee start
+	const int32 PreviousGridX = CursorPawn->GridX;
+	const int32 PreviousGridY = CursorPawn->GridY;
+	// 2026.10.14 Lee end
+
 	// X 軸: 正 → GridX-1（左）、負 → GridX+1（右）
 	if (FMath::Abs(Input.X) >= FMath::Abs(Input.Y))
 	{
@@ -336,6 +349,13 @@ void AAnimalGatherPlayerController::PerformMoveInDirection(const FVector2D& Inpu
 			CursorPawn->MoveCursor(0, Delta);
 		}
 	}
+
+	// 2026.10.14 Lee start
+	if (CursorPawn->GridX != PreviousGridX || CursorPawn->GridY != PreviousGridY)
+	{
+		PlayGameplaySound(CursorMoveSound, CursorMoveConcurrency);
+	}
+	// 2026.10.14 Lee end
 }
 
 void AAnimalGatherPlayerController::OnPlaceUp(const FInputActionValue& Value)
@@ -409,6 +429,9 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		CurrentTile == ETileType::GoalP1 ||
 		CurrentTile == ETileType::GoalP2)
 	{
+		// 2026.10.14 Lee start
+		PlayActionRejectSound();
+		// 2026.10.14 Lee end
 		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: 特殊タイル (%d) は上書きできません"), (int32)CurrentTile);
 		return;
 	}
@@ -416,6 +439,9 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	// ボーダータイルには配置不可
 	if (MapManagerRef->IsBorderTile(TargetCoords.X, TargetCoords.Y))
 	{
+		// 2026.10.14 Lee start
+		PlayActionRejectSound();
+		// 2026.10.14 Lee end
 		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: ボーダータイル (%d, %d) には配置できません"),
 			TargetCoords.X, TargetCoords.Y);
 		return;
@@ -426,6 +452,9 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	const ATutorialGameMode* TutorialGameMode = Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(this));
 	if (TutorialGameMode && !TutorialGameMode->IsPlacementAllowed(static_cast<uint8>(CursorPawn->PlayerID), TargetCoords))
 	{
+		// 2026.10.14 Lee start
+		PlayActionRejectSound();
+		// 2026.10.14 Lee end
 		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: チュートリアルの制限により (%d, %d) には配置できません"),
 			TargetCoords.X, TargetCoords.Y);
 		return;
@@ -464,6 +493,10 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	MapManagerRef->SetTileData(TargetCoords.X, TargetCoords.Y, Direction, OwnerId);
 	// 2026.09.25 Lee end
 	PlaceHistory.Add(TargetCoords);
+
+	// 2026.10.14 Lee start
+	PlayGameplaySound(ArrowPlaceSound, ArrowPlaceConcurrency);
+	// 2026.10.14 Lee end
 
 	// 2026.10.08 Lee start（教程用：実配置完了の通知。地図と履歴の更新が確定した後でのみ送る）
 	// 通常対戦では Cast が失敗するため何も起きない（チュートリアルの修復記録でのみ使用される）
@@ -504,8 +537,74 @@ void AAnimalGatherPlayerController::EndPlay(const EEndPlayReason::Type EndPlayRe
 	// 連移タイマーの残留を防ぐ。
 	GetWorldTimerManager().ClearTimer(AutoRepeatHandle);
 
+	// 2026.10.14 Lee start
+	if (SkillSystemComponent != nullptr)
+	{
+		SkillSystemComponent->OnSkillUsed.RemoveDynamic(this, &AAnimalGatherPlayerController::HandleSkillUsed);
+		SkillSystemComponent->OnSkillUseFailed.RemoveDynamic(this, &AAnimalGatherPlayerController::HandleSkillUseFailed);
+	}
+	// 2026.10.14 Lee end
+
 	Super::EndPlay(EndPlayReason);
 }
+
+// 2026.10.14 Lee start
+void AAnimalGatherPlayerController::PlayGameplaySound(USoundBase* Sound, USoundConcurrency* Concurrency) const
+{
+	if (Sound == nullptr)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, Sound, 1.0f, 1.0f, 0.0f, Concurrency, this, false);
+}
+
+void AAnimalGatherPlayerController::PlayActionRejectSound()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || ActionRejectSound == nullptr)
+	{
+		return;
+	}
+
+	const double CurrentTime = World->GetTimeSeconds();
+	if (CurrentTime < NextActionRejectSoundTime)
+	{
+		return;
+	}
+
+	/** @brief 並発設定が抑制した場合も再試行しないよう、再生要求前に限頻を確定する。 */
+	NextActionRejectSoundTime = CurrentTime + 0.25;
+	PlayGameplaySound(ActionRejectSound, ActionRejectConcurrency);
+}
+
+void AAnimalGatherPlayerController::HandleSkillUsed(int32 SlotIndex)
+{
+	if (SlotIndex == SkillSlotIndex_Reverse)
+	{
+		PlayGameplaySound(SkillReverseSound, SkillConcurrency);
+	}
+	else if (SlotIndex == SkillSlotIndex_SpeedUp)
+	{
+		PlayGameplaySound(SkillSpeedUpSound, SkillConcurrency);
+	}
+}
+
+void AAnimalGatherPlayerController::HandleSkillUseFailed(int32 SlotIndex, ESkillUseResult Result)
+{
+	if (SlotIndex != SkillSlotIndex_Reverse && SlotIndex != SkillSlotIndex_SpeedUp)
+	{
+		return;
+	}
+
+	if (Result == ESkillUseResult::CoolingDown ||
+		Result == ESkillUseResult::NoUses ||
+		Result == ESkillUseResult::NoTarget)
+	{
+		PlayActionRejectSound();
+	}
+}
+// 2026.10.14 Lee end
 
 USkillSystemComponent* AAnimalGatherPlayerController::GetSkillSystemComponent() const
 {

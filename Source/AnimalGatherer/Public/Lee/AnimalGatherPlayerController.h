@@ -11,6 +11,8 @@ class ACursorPawn;
 class AMapManager;
 class UInputAction;
 class UInputMappingContext;
+class USoundBase;
+class USoundConcurrency;
 // 2026.10.06 Lee start
 class USkillSystemComponent;
 // 2026.10.06 Lee end
@@ -82,6 +84,44 @@ public:
 	/** @brief リピート間隔（秒）。小さいほど早く動く。 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input|AutoRepeat", meta = (ClampMin = "0.05", ClampMax = "0.5", Units = "s"))
 	float AutoRepeatRate = 0.15f;
+
+	// 2026.10.14 Lee start
+	/** @brief 実際にカーソルが移動した時に再生する短いゲーム効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Gameplay")
+	TObjectPtr<USoundBase> CursorMoveSound = nullptr;
+
+	/** @brief 矢印配置が確定した時に再生する効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Gameplay")
+	TObjectPtr<USoundBase> ArrowPlaceSound = nullptr;
+
+	/** @brief 配置または技能のプレイヤー向け失敗に共用する効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Gameplay")
+	TObjectPtr<USoundBase> ActionRejectSound = nullptr;
+
+	/** @brief 反転技能が正常に使用された時の効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Gameplay")
+	TObjectPtr<USoundBase> SkillReverseSound = nullptr;
+
+	/** @brief 加速技能が正常に使用された時の効果音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Gameplay")
+	TObjectPtr<USoundBase> SkillSpeedUpSound = nullptr;
+
+	/** @brief カーソル音のプレイヤー別並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Concurrency")
+	TObjectPtr<USoundConcurrency> CursorMoveConcurrency = nullptr;
+
+	/** @brief 配置音のプレイヤー別並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Concurrency")
+	TObjectPtr<USoundConcurrency> ArrowPlaceConcurrency = nullptr;
+
+	/** @brief 配置失敗と技能失敗に共用するプレイヤー別並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Concurrency")
+	TObjectPtr<USoundConcurrency> ActionRejectConcurrency = nullptr;
+
+	/** @brief 技能音のプレイヤー別並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Audio|Concurrency")
+	TObjectPtr<USoundConcurrency> SkillConcurrency = nullptr;
+	// 2026.10.14 Lee end
 
 	//==============================================================================
 	// 固定カメラ設定
@@ -238,6 +278,22 @@ private:
 	/** @brief 入力ベクトルからカーソルを1マス移動する（内部処理）。 */
 	void PerformMoveInDirection(const FVector2D& Input);
 
+	// 2026.10.14 Lee start
+	/** @brief プレイヤー操作音を所属 Controller を Owner として再生する。 */
+	void PlayGameplaySound(USoundBase* Sound, USoundConcurrency* Concurrency) const;
+
+	/** @brief 配置/技能失敗の共通限頻を通して失敗音を再生する。 */
+	void PlayActionRejectSound();
+
+	/** @brief スキル成功イベントを一度だけ音声へ変換する。 */
+	UFUNCTION()
+	void HandleSkillUsed(int32 SlotIndex);
+
+	/** @brief プレイヤーに通知可能なスキル失敗だけを共通限頻で再生する。 */
+	UFUNCTION()
+	void HandleSkillUseFailed(int32 SlotIndex, ESkillUseResult Result);
+	// 2026.10.14 Lee end
+
 	//==============================================================================
 	// 内部データ
 	//==============================================================================
@@ -254,6 +310,11 @@ private:
 
 	/** @brief 自動リピート用タイマーハンドル。 */
 	FTimerHandle AutoRepeatHandle;
+
+	// 2026.10.14 Lee start
+	/** @brief 次に失敗音を許可する World ゲーム時刻。 */
+	double NextActionRejectSoundTime = 0.0;
+	// 2026.10.14 Lee end
 
 	// 2026.10.06 Lee start（スキル入力と一時状態）
 	/** @brief 反転スキル IA の Started 処理（押下 1 回につき 1 回だけ試行）。 */
