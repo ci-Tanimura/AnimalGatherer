@@ -681,7 +681,22 @@ void UAnimalGathererViewportClient::SyncStableMatchIdentity()
 	StableMatchWorld = ViewportWorld;
 	StableMatchControllers = CurrentControllers;
 
-	GamepadSlotList.Empty();        // 旧局のスロット（旧デバイス恒久拒絶の原因）を破棄
+	// 2026.10.15 Lee start（教程→正式試合：保持指示があればスロット予約を次局へ引き継ぐ）
+	// GamepadSlotList.Empty();        // 旧局のスロット（旧デバイス恒久拒絶の原因）を破棄
+	if (bRetainSlotsForNextWorldSwitch)
+	{
+		// 保持指示は次の 1 回の局替わりでのみ有効（ここで消費する）。
+		// スロット以外（ホールド・遮断・警告・P2 仮想デバイス束縛）は下の通常処理で必ず作り直す。
+		bRetainSlotsForNextWorldSwitch = false;
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] stable match cache reset with slot retention. retained slots=%d"),
+			GamepadSlotList.Num());
+	}
+	else
+	{
+		GamepadSlotList.Empty();        // 旧局のスロット（旧デバイス恒久拒絶の原因）を破棄
+	}
+	// 2026.10.15 Lee end（教程→正式試合）
 	WarnedUnknownDeviceIds.Empty(); // 未知デバイス警告も局単位でやり直す
 	DeviceHoldStates.Empty();       // 旧局のホールド追跡を破棄
 	DeviceGateStates.Empty();       // 旧局の遮断状態を破棄（新局の門は以降の失焦・切断で生成）
@@ -692,6 +707,32 @@ void UAnimalGathererViewportClient::SyncStableMatchIdentity()
 	EnsureP2VirtualDeviceInitialized(ViewportWorld);
 }
 // 2026.10.06 Lee end（B2R）
+
+// 2026.10.15 Lee start（教程→正式試合：次局へのスロット保持指示の受付）
+void UAnimalGathererViewportClient::RequestSlotRetentionForNextWorldSwitch()
+{
+	// 安定機構が無効な局（スロット予約が機能していない局）では保持すべき割当が存在しない
+	if (!IsStableDeviceRoutingActive())
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] slot retention request ignored (stable routing inactive)."));
+		return;
+	}
+
+	// スロット予約が空なら保持する割当が無く、新規割当と結果が変わらないため受理しない
+	if (GamepadSlotList.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[ViewportClient] slot retention request ignored (no slots reserved)."));
+		return;
+	}
+
+	bRetainSlotsForNextWorldSwitch = true;
+	UE_LOG(LogTemp, Warning,
+		TEXT("[ViewportClient] slot retention armed for next world switch (slots=%d)."),
+		GamepadSlotList.Num());
+}
+// 2026.10.15 Lee end（教程→正式試合）
 
 //==============================================================================
 // 2026.10.06 Lee end（B2：安定デバイス割当と物理入力ゲート）

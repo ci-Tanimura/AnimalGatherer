@@ -18,6 +18,9 @@
 // 2026.10.09 Lee start（地図区域対調：出現入替の ControllerId 参照に必要）
 #include "Engine/LocalPlayer.h"
 // 2026.10.09 Lee end
+// 2026.10.15 Lee start（教程→正式試合：ViewportClient へのスロット保持指示に必要）
+#include "Lee/AnimalGathererViewportClient.h"
+// 2026.10.15 Lee end
 
 ATutorialGameMode::ATutorialGameMode()
 {
@@ -745,6 +748,13 @@ void ATutorialGameMode::FinishTutorial()
 {
 	if (!TutorialEndLevelName.IsNone())
 	{
+		// 2026.10.15 Lee start（教程→正式試合：遷移直前に手柄スロット保持を指示する。
+		//  正式試合側の新局初回有効化で、教程中の P2/P1 実機手柄割当がそのまま引き継がれる）
+		if (UAnimalGathererViewportClient* ViewportClient = Cast<UAnimalGathererViewportClient>(GetWorld()->GetGameViewport()))
+		{
+			ViewportClient->RequestSlotRetentionForNextWorldSwitch();
+		}
+		// 2026.10.15 Lee end（教程→正式試合）
 		UGameplayStatics::OpenLevel(this, TutorialEndLevelName);
 	}
 }

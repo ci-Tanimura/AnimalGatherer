@@ -76,6 +76,17 @@ public:
 	// 2026.10.06 Lee end（C4458）
 	// 2026.10.06 Lee end（B2）
 
+	// 2026.10.15 Lee start（教程→正式試合：スロット保持の指示 API）
+	/**
+	 * @brief 次回の局替わり（新 World / 新 Controller 組の初回有効化）でゲームパッドの
+	 *        スロット予約を保持するよう指示する（チュートリアル完了 → 正式試合遷移の直前に呼ぶ・1 回限り）。
+	 *        保持するのはスロット割当のみで、ホールド／遮断状態のリセットと
+	 *        P2 仮想デバイスの新局 P2 LocalPlayer への再束縛は SyncStableMatchIdentity の通常処理に委ねる。
+	 *        安定機構が無効な局・スロット予約が空の状態では指示を受理しない。
+	 */
+	void RequestSlotRetentionForNextWorldSwitch();
+	// 2026.10.15 Lee end（教程→正式試合）
+
 private:
 	/**
 	 * @brief 入力デバイスの接続/切断時のコールバック。
@@ -120,6 +131,11 @@ private:
 	/** @brief キャッシュ確保時の両 PlayerController の身元（LocalPlayer 順＝[0] P1 / [1] P2）。 */
 	TArray<TWeakObjectPtr<AAnimalGatherPlayerController>> StableMatchControllers;
 	// 2026.10.06 Lee end（B2R）
+
+	// 2026.10.15 Lee start（教程→正式試合：次回局替わりでのスロット保持指示（初回有効化で消費））
+	/** @brief チュートリアル完了側から指示された次回局替わりでのスロット保持（1 回限り）。 */
+	bool bRetainSlotsForNextWorldSwitch = false;
+	// 2026.10.15 Lee end（教程→正式試合）
 
 	/** @brief 管理デバイスの現在の物理ホールド追跡（キーはデバイス id）。 */
 	TMap<int32, FStableDeviceInputState> DeviceHoldStates;
