@@ -172,6 +172,17 @@ public:
 	/** @brief 指定グリッド座標のタイル状態を返す。 */
 	virtual ETileType GetCellState_Implementation(FIntPoint GridCoords) const override;
 
+	// 2026.10.08 Tanimura start------------------------------------------------------
+	// 指定グリッド座標のマス中心ワールド座標を返す
+	virtual FVector ToWorldCenter_Implementation(FIntPoint GridCoords) const override;
+
+	// 指定グリッド座標が盤面内かどうかを返す
+	virtual bool IsValidCoord_Implementation(FIntPoint GridCoords) const override;
+
+	// 盤面のタイル数（幅, 高さ）を返す
+	virtual FIntPoint GetGridSize_Implementation() const override;
+	// 2026.10.08 Tanimura end--------------------------------------------------------
+
 	//==============================================================================
 	// エディタ構築処理
 	//==============================================================================
