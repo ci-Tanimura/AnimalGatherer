@@ -5,6 +5,9 @@
 #include "Components/Button.h"
 #include "Engine/World.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundConcurrency.h"
 
 namespace
 {
@@ -92,6 +95,31 @@ void UMenuHUDWidget::NativeDestruct()
 	{
 		Button_Quit->OnClicked.RemoveDynamic(this, &UMenuHUDWidget::HandleQuitButtonClicked);
 	}
+
+	// 2026.10.14 Lee start
+	for (UButton* Button : OrderedButtons)
+	{
+		if (Button == Button_Start)
+		{
+			Button->OnHovered.RemoveDynamic(this, &UMenuHUDWidget::HandleStartButtonHovered);
+			Button->OnClicked.RemoveDynamic(this, &UMenuHUDWidget::HandleStartButtonClicked);
+		}
+		else if (Button == Button_ReStart)
+		{
+			Button->OnHovered.RemoveDynamic(this, &UMenuHUDWidget::HandleRestartButtonHovered);
+			Button->OnClicked.RemoveDynamic(this, &UMenuHUDWidget::HandleRestartButtonClicked);
+		}
+		else if (Button == Button_ReTitle)
+		{
+			Button->OnHovered.RemoveDynamic(this, &UMenuHUDWidget::HandleRetitleButtonHovered);
+			Button->OnClicked.RemoveDynamic(this, &UMenuHUDWidget::HandleRetitleButtonClicked);
+		}
+		else if (Button == Button_Quit)
+		{
+			Button->OnHovered.RemoveDynamic(this, &UMenuHUDWidget::HandleQuitButtonHovered);
+		}
+	}
+	// 2026.10.14 Lee end
 
 	// 全ボタンへ本来の背景色を復元し、ハイライト関連のキャッシュと状態を空にする
 	// （再表示時に選択状態と色が乱れず、切替ロックも再度機能する）。
@@ -229,8 +257,84 @@ void UMenuHUDWidget::HandleQuitButtonClicked()
 {
 	// BP 接線なしでボタン直接クリックでも確実に終了できるようにする（切替ロックはこちらで消費）。
 	UE_LOG(LogTemp, Verbose, TEXT("[MenuHUD] Button_Quit が直接クリックされた"));
+	// 2026.10.14 Lee start
+	HandleMenuButtonHovered(Button_Quit);
+	// 2026.10.14 Lee end
 	RequestMenuQuit(GetOwningPlayer());
 }
+
+// 2026.10.14 Lee start
+void UMenuHUDWidget::HandleStartButtonHovered()
+{
+	HandleMenuButtonHovered(Button_Start);
+}
+
+void UMenuHUDWidget::HandleRestartButtonHovered()
+{
+	HandleMenuButtonHovered(Button_ReStart);
+}
+
+void UMenuHUDWidget::HandleRetitleButtonHovered()
+{
+	HandleMenuButtonHovered(Button_ReTitle);
+}
+
+void UMenuHUDWidget::HandleQuitButtonHovered()
+{
+	HandleMenuButtonHovered(Button_Quit);
+}
+
+void UMenuHUDWidget::HandleStartButtonClicked()
+{
+	HandleMenuButtonClicked(Button_Start);
+}
+
+void UMenuHUDWidget::HandleRestartButtonClicked()
+{
+	HandleMenuButtonClicked(Button_ReStart);
+}
+
+void UMenuHUDWidget::HandleRetitleButtonClicked()
+{
+	HandleMenuButtonClicked(Button_ReTitle);
+}
+
+void UMenuHUDWidget::HandleMenuButtonHovered(UButton* Button)
+{
+	const int32 ButtonIndex = OrderedButtons.IndexOfByKey(Button);
+	if (ButtonIndex != INDEX_NONE)
+	{
+		SetSelectedIndex(ButtonIndex);
+	}
+}
+
+void UMenuHUDWidget::HandleMenuButtonClicked(UButton* Button)
+{
+	if (!IsValid(Button))
+	{
+		return;
+	}
+
+	const int32 ButtonIndex = OrderedButtons.IndexOfByKey(Button);
+	if (ButtonIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	SetSelectedIndex(ButtonIndex);
+	TryBeginMenuTransition();
+}
+
+void UMenuHUDWidget::PlayMenuSound(USoundBase* Sound, USoundConcurrency* Concurrency) const
+{
+	if (Sound == nullptr)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySound2D(this, Sound, 1.0f, 1.0f, 0.0f, Concurrency, GetOwningPlayer(), true);
+}
+// 2026.10.14 Lee end
 
 //==============================================================================
 // 内部処理
@@ -266,6 +370,31 @@ void UMenuHUDWidget::ResolveOrderedButtons()
 	{
 		Button_Quit->OnClicked.AddUniqueDynamic(this, &UMenuHUDWidget::HandleQuitButtonClicked);
 	}
+
+	// 2026.10.14 Lee start
+	for (UButton* Button : OrderedButtons)
+	{
+		if (Button == Button_Start)
+		{
+			Button->OnHovered.AddUniqueDynamic(this, &UMenuHUDWidget::HandleStartButtonHovered);
+			Button->OnClicked.AddUniqueDynamic(this, &UMenuHUDWidget::HandleStartButtonClicked);
+		}
+		else if (Button == Button_ReStart)
+		{
+			Button->OnHovered.AddUniqueDynamic(this, &UMenuHUDWidget::HandleRestartButtonHovered);
+			Button->OnClicked.AddUniqueDynamic(this, &UMenuHUDWidget::HandleRestartButtonClicked);
+		}
+		else if (Button == Button_ReTitle)
+		{
+			Button->OnHovered.AddUniqueDynamic(this, &UMenuHUDWidget::HandleRetitleButtonHovered);
+			Button->OnClicked.AddUniqueDynamic(this, &UMenuHUDWidget::HandleRetitleButtonClicked);
+		}
+		else if (Button == Button_Quit)
+		{
+			Button->OnHovered.AddUniqueDynamic(this, &UMenuHUDWidget::HandleQuitButtonHovered);
+		}
+	}
+	// 2026.10.14 Lee end
 }
 
 void UMenuHUDWidget::SetSelectedIndex(int32 NewIndex, bool bForce)
@@ -290,6 +419,13 @@ void UMenuHUDWidget::SetSelectedIndex(int32 NewIndex, bool bForce)
 
 	const int32 PreviousIndex = SelectedIndex;
 	SelectedIndex = Clamped;
+
+	// 2026.10.14 Lee start
+	if (PreviousIndex != INDEX_NONE)
+	{
+		PlayMenuSound(MenuSelectSound, MenuSelectConcurrency);
+	}
+	// 2026.10.14 Lee end
 
 	UE_LOG(LogTemp, Verbose, TEXT("[MenuHUD] 選択更新: %d → %d (%s)"),
 		PreviousIndex, SelectedIndex, *GetNameSafe(OrderedButtons[SelectedIndex]));
@@ -341,6 +477,18 @@ bool UMenuHUDWidget::TryBeginMenuTransition()
 		return false;
 	}
 	bTransitionRequested = true;
+	// 2026.10.14 Lee start
+	//PlayMenuSound(MenuConfirmSound, MenuConfirmConcurrency);←元のコードは消さない
+	// 2026.10.14 Lee end
+	// 2026.10.15 Lee start
+	/** @brief 決定音は OpenLevel による即時切図で ActiveSound が破棄されないよう、
+	 *        レベル遷移を跨いで再生を継続する SpawnSound2D（UI 音・空間化無効・
+	 *        再生終了後の自動破棄）で再生する（null 参照時は無音）。 */
+	if (MenuConfirmSound != nullptr)
+	{
+		UGameplayStatics::SpawnSound2D(this, MenuConfirmSound, 1.0f, 1.0f, 0.0f, MenuConfirmConcurrency, true, true);
+	}
+	// 2026.10.15 Lee end
 	UE_LOG(LogTemp, Verbose, TEXT("[MenuHUD] 切替ロック取得"));
 	return true;
 }

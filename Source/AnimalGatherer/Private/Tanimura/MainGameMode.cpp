@@ -50,6 +50,12 @@ void AMainGameMode::BeginPlay()
     CountdownRemaining = FMath::CeilToInt(ReadyDelay);
     // 2026.10.06 Lee A範囲手直し end
 
+    // 2026.10.14 Tanimura start
+    LastPlayedReadyTickValue = INDEX_NONE;
+    LastPlayedFinalTickValue = INDEX_NONE;
+    PlayReadyTickIfNeeded(CountdownRemaining);
+    // 2026.10.14 Tanimura end
+
     // まずUIに初期時間を通知
     if (OnTimeChanged.IsBound()) {
         OnTimeChanged.Broadcast(TimeRemaining);
@@ -102,6 +108,10 @@ void AMainGameMode::AdvanceCountdown()
 {
     CountdownRemaining--;
 
+    // 2026.10.14 Tanimura start
+    PlayReadyTickIfNeeded(CountdownRemaining);
+    // 2026.10.14 Tanimura end
+
     if (OnCountdownChanged.IsBound()) {
         OnCountdownChanged.Broadcast(CountdownRemaining);
     }
@@ -125,6 +135,11 @@ void AMainGameMode::StartMatch()
         MatchEndTime = World->GetTimeSeconds() + static_cast<float>(TotalGameTime);
     }
     TimeRemaining = TotalGameTime;
+
+    // 2026.10.14 Tanimura start
+    LastPlayedFinalTickValue = INDEX_NONE;
+    PlayMatchEventSound(MatchStartSound);
+    // 2026.10.14 Tanimura end
 
     // 技能初期化のリトライを止める（未準備なら本試合は技能無効のまま開始）。
     GetWorldTimerManager().ClearTimer(SkillInitRetryTimerHandle);
@@ -178,6 +193,29 @@ void AMainGameMode::SetPlayersInputEnabled(bool bEnable)
         }
     }
 }
+
+// 2026.10.14 Tanimura start
+void AMainGameMode::PlayReadyTickIfNeeded(int32 CountdownValue)
+{
+    if (!bUseNormalMatchFlow || CountdownValue <= 0 || CountdownValue == LastPlayedReadyTickValue)
+    {
+        return;
+    }
+
+    LastPlayedReadyTickValue = CountdownValue;
+    PlayMatchEventSound(ReadyTickSound);
+}
+
+void AMainGameMode::PlayMatchEventSound(USoundBase* Sound) const
+{
+    if (Sound == nullptr)
+    {
+        return;
+    }
+
+    UGameplayStatics::PlaySound2D(this, Sound, 1.0f, 1.0f, 0.0f, MatchEventConcurrency, nullptr, false);
+}
+// 2026.10.14 Tanimura end
 
 void AMainGameMode::AddScore(int32 PlayerID, int32 ScoreToAdd)
 {
@@ -262,7 +300,11 @@ void AMainGameMode::EndGame()
 
     // 2. タイムアップ効果音の再生
     if (TimeUpSound) {
-        UGameplayStatics::PlaySound2D(this, TimeUpSound);
+        // 2026.10.14 Tanimura start
+        /** @brief 旧呼び出しをコメントとして保持する。 */
+        // UGameplayStatics::PlaySound2D(this, TimeUpSound);
+        PlayMatchEventSound(TimeUpSound);
+        // 2026.10.14 Tanimura end
     }
     else {
         UE_LOG(LogTemp, Warning, TEXT("AMainGameMode::EndGame: TimeUpSound が設定されていません。"));
@@ -319,6 +361,15 @@ void AMainGameMode::AdvanceTimer()
             EndGame(); // Ended ロック後に 0 / OnTimeUp を放送する
             return;
         }
+
+        // 2026.10.14 Tanimura start
+        if (TimeRemaining >= 1 && TimeRemaining <= 5 && TimeRemaining != LastPlayedFinalTickValue)
+        {
+            LastPlayedFinalTickValue = TimeRemaining;
+            PlayMatchEventSound(FinalTickSound);
+        }
+        // 2026.10.14 Tanimura end
+
         if (OnTimeChanged.IsBound()) {
             OnTimeChanged.Broadcast(TimeRemaining);
         }

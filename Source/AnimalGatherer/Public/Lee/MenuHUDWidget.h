@@ -8,6 +8,8 @@
 
 class APlayerController;
 class UButton;
+class USoundBase;
+class USoundConcurrency;
 class UWorld;
 
 /**
@@ -111,6 +113,24 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> Button_Quit = nullptr;
 
+	// 2026.10.14 Lee start
+	/** @brief メニュー項目の実選択変更時に再生する UI 音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Menu|Audio")
+	TObjectPtr<USoundBase> MenuSelectSound = nullptr;
+
+	/** @brief 受理された決定/戻る/終了操作時に再生する UI 音。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Menu|Audio")
+	TObjectPtr<USoundBase> MenuConfirmSound = nullptr;
+
+	/** @brief メニュー選択音の並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Menu|Audio")
+	TObjectPtr<USoundConcurrency> MenuSelectConcurrency = nullptr;
+
+	/** @brief メニュー決定音の並発設定。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Menu|Audio")
+	TObjectPtr<USoundConcurrency> MenuConfirmConcurrency = nullptr;
+	// 2026.10.14 Lee end
+
 	//==============================================================================
 	// BP 実装フック（任意。選択ハイライトは C++ 既定実装があるため BP 未接線でも成立する）
 	//==============================================================================
@@ -139,6 +159,32 @@ private:
 	/** @brief Button_Quit が直接クリックされた場合の退出入口（AddUniqueDynamic で接続）。 */
 	UFUNCTION()
 	void HandleQuitButtonClicked();
+
+	// 2026.10.14 Lee start
+	UFUNCTION()
+	void HandleStartButtonHovered();
+	UFUNCTION()
+	void HandleRestartButtonHovered();
+	UFUNCTION()
+	void HandleRetitleButtonHovered();
+	UFUNCTION()
+	void HandleQuitButtonHovered();
+	UFUNCTION()
+	void HandleStartButtonClicked();
+	UFUNCTION()
+	void HandleRestartButtonClicked();
+	UFUNCTION()
+	void HandleRetitleButtonClicked();
+
+	/** @brief ボタンへのマウス移動を共有選択状態へ反映する。 */
+	void HandleMenuButtonHovered(UButton* Button);
+
+	/** @brief ボタン直接クリックを切替ロックと確認音へ接続する。 */
+	void HandleMenuButtonClicked(UButton* Button);
+
+	/** @brief 指定されたメニュー UI 音を PlayerController Owner 付きで再生する。 */
+	void PlayMenuSound(USoundBase* Sound, USoundConcurrency* Concurrency) const;
+	// 2026.10.14 Lee end
 
 	//==============================================================================
 	// 内部処理
