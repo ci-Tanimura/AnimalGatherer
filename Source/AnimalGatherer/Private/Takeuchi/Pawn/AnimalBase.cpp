@@ -21,10 +21,13 @@ namespace
 }
 // 2026.10.06 Lee end
 
-// 2026.10.08 Gu start
-// 動物がゴールに入った時再生するエフェクト
-#include "Particles/ParticleSystem.h"
-// 2026.10.08 Gu end
+// 2026.10.16 Lee start（ゴール演出の Niagara 再生・既定アセット読込・放出停止タイマーに必要な依存を追加）
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
+// 2026.10.16 Lee end
 
 AAnimalBase::AAnimalBase()
 {
@@ -33,6 +36,20 @@ AAnimalBase::AAnimalBase()
 	//動物の位置や回転の基準になるルートコンポーネントを作成する
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	RootComponent = SceneRoot;
+
+	// 2026.10.16 Lee start（ゴール演出の既定 Niagara アセットを読み込む。
+	// BP データ互換のため旧 Cascade 用の GoalVFX プロパティ自体は保持するが、値は設定しない）
+	// 2026.10.16 Lee start（既定アセットを NS_Sparkling_Animate_2 へ変更。旧呼び出しはコメントとして保持）
+	// ConstructorHelpers::FObjectFinder<UNiagaraSystem> GoalNiagaraVFXFinder(
+	// 	TEXT("/Game/FreeParticle_SoftTofu/Niagara/NS_Sparkling.NS_Sparkling"));
+	ConstructorHelpers::FObjectFinder<UNiagaraSystem> GoalNiagaraVFXFinder(
+		TEXT("/Game/FreeParticle_SoftTofu/Niagara/NS_Sparkling_Animate_2.NS_Sparkling_Animate_2"));
+	// 2026.10.16 Lee end（既定アセットを NS_Sparkling_Animate_2 へ変更）
+	if (GoalNiagaraVFXFinder.Succeeded())
+	{
+		GoalNiagaraVFX = GoalNiagaraVFXFinder.Object;
+	}
+	// 2026.10.16 Lee end
 }
 
 void AAnimalBase::BeginPlay()
@@ -89,13 +106,6 @@ void AAnimalBase::Tick(float DeltaTime)
 		return;
 	}
 	// 2026.10.06 Lee end（Goal 処理済み・破壊開始済みの再 Tick を遮断する）
-
-	// 2026.10.06 Lee start（マス中心ごとの分割移動へ置き換え。旧実装はコメントとして保持）
-	// //現在いるタイルの情報を読み取り、必要なら移動方向を更新する
-	// UpdateMoveDirectionFromCurrentTile(DeltaTime);
-	//
-	// MoveAnimal(DeltaTime);
-	// 2026.10.06 Lee end
 
 	// 2026.10.06 Lee start（権威倍率照会 → 試合段階判定 → 分割移動の新経路）
 	// 権威倍率を毎フレーム照会し、変化があった場合のみアニメ入口へ通知する
@@ -162,156 +172,6 @@ void AAnimalBase::SetMapActor(AActor* NewMapActor)
 	// 最終マップ確定後に共有加速の権威照会へ冪等に接続する（不一致マップなら 1.0 のまま）
 	RefreshSpeedMultiplier();
 	// 2026.10.06 Lee end
-}
-
-// 2026.10.06 Lee start
-// 【旧実装（未使用・保持）】
-// Tick は現在、セル中心ごとに区間を分割して方向 / Goal を読む新経路
-// （MoveAlongGrid / ProcessGridCenter）を使用するため、本関数は呼び出されない。
-// 既存の継承やデバッグ呼び出しを壊さないよう、本体ごと保持している。
-// 2026.10.06 Lee end
-//足元のマスを読み取り、SetMoveDirectionを呼ぶ
-void AAnimalBase::UpdateMoveDirectionFromCurrentTile(float DeltaTime)
-{
-	//マップ参照が設定されていない場合は、タイル情報を取得できないため処理しない
-	if (!MapActor)return;
-
-	//参照先が GridInteractInterface を実装していない場合は、タイル情報を取得できないため処理しない
-	if (!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass()))return;
-
-	//動物の座標を取得
-	const FVector AnimalLocation = GetActorLocation();
-
-	//マップアクターの位置を、グリッド計算の原点として扱う
-	const FVector MapOrigin = MapActor->GetActorLocation();
-
-	//各タイルは MapOrigin + GridCoords * TileSize の位置を中心として配置されるため、
-	//最も近いタイル中心のグリッド座標へ変換する
-	const FIntPoint CurrentGridCoords(
-		FMath::RoundToInt((AnimalLocation.X - MapOrigin.X) / TileSize),
-		FMath::RoundToInt((AnimalLocation.Y - MapOrigin.Y) / TileSize)
-	);
-
-	//前回と同じマスにいる場合は、同じタイル処理を繰り返さない
-	if (bHasLastGridCoords && CurrentGridCoords == LastGridCoords)return;
-
-
-	//現在マスの中心座標
-	const FVector CurrentTileCenter(
-		MapOrigin.X + CurrentGridCoords.X * TileSize,
-		MapOrigin.Y + CurrentGridCoords.Y * TileSize,
-		AnimalLocation.Z
-	);
-
-	const float FrameMoveDistance = MoveSpeed * DeltaTime;
-	const float EffectiveTolerance =
-		FMath::Max(DirectionReadTolerance, FrameMoveDistance * 2.0f);
-
-	const float DistanceToTileCenter =
-		FVector::Dist2D(AnimalLocation, CurrentTileCenter);
-
-	//中央付近に来るまではタイルを読まない
-	if (DistanceToTileCenter > EffectiveTolerance)return;
-
-	//方向転換を繰り返しても中心線から少しずつずれないよう、判定時にマス中央へ揃える
-	SetActorLocation(CurrentTileCenter, false);
-
-	//中央に到達してから、このマスを処理済みとして記録する
-	LastGridCoords = CurrentGridCoords;
-	bHasLastGridCoords = true;
-
-	const ETileType TileType =
-		IGridInteractInterface::Execute_GetCellState(MapActor, CurrentGridCoords);
-
-	//タイル種類に応じて、動物の移動方向を変更する
-	switch (TileType)
-	{
-	case ETileType::DirUp:
-		SetMoveDirection(FVector(0.0f, 1.0f, 0.0f));
-		break;
-
-	case ETileType::DirDown:
-		SetMoveDirection(FVector(0.0f, -1.0f, 0.0f));
-		break;
-
-	case ETileType::DirLeft:
-		SetMoveDirection(FVector(1.0f, 0.0f, 0.0f));
-		break;
-
-	case ETileType::DirRight:
-		SetMoveDirection(FVector(-1.0f, 0.0f, 0.0f));
-		break;
-
-	case ETileType::GoalP1:
-	{
-		if (AMainGameMode* GameMode =
-			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
-		{
-			GameMode->AddScore(0, 1);
-		}
-		// 2026.07.31 Gu start
-		// ゴールの効果音再生
-		if (GoalSound)
-		{
-			UGameplayStatics::PlaySound2D(this, GoalSound);
-		}
-		// 2026.07.31 Gu end
-		// 2026.10.08 Gu start
-		//動物がゴールに入った時再生するエフェクト
-		if (GoalVFX)
-		{
-			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
-		}
-		// 2026.10.08 Gu end
-		Destroy();
-		return;
-	}
-
-	case ETileType::GoalP2:
-	{
-		if (AMainGameMode* GameMode =
-			Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this)))
-		{
-			GameMode->AddScore(1, 1);
-		}
-		// 2026.07.31 Gu start
-		// ゴールの効果音再生
-		if (GoalSound)
-		{
-			UGameplayStatics::PlaySound2D(this, GoalSound);
-		}
-		// 2026.07.31 Gu end
-		// 2026.10.08 Gu start
-		//動物がゴールに入った時再生するエフェクト
-		if (GoalVFX)
-		{
-			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
-		}
-		// 2026.10.08 Gu end
-		Destroy();
-		return;
-	}
-
-	default:
-		break;
-	}
-}
-
-// 2026.10.06 Lee start
-// 【旧実装（未使用・保持）】
-// 移動は MoveAlongGrid / MoveStraight（sweep 結果と実移動距離を検証する新実装）に置き換わった。
-// 呼び出しは無いが、旧挙動の参照実装として本体ごと保持している。
-// 2026.10.06 Lee end
-void AAnimalBase::MoveAnimal(float DeltaTime)
-{
-	//移動方向がない、または移動速度が0以下の場合は移動しない
-	if (CurrentMoveDirection.IsNearlyZero() || MoveSpeed <= 0.0f)return;
-
-	//現在の移動方向、移動速度、前フレームからの経過時間を使って移動量を計算する
-	const FVector MoveDelta = CurrentMoveDirection * MoveSpeed * DeltaTime;
-
-	//衝突を無視して、計算した移動量だけワールド座標で移動する
-	AddActorWorldOffset(MoveDelta, true);
 }
 
 // 2026.10.06 Lee start（試合段階判定・権威倍率・マス中心分割移動の新実装）
@@ -726,17 +586,78 @@ bool AAnimalBase::HandleGoalTile(int32 ScoringPlayerId)
 	}
 	// 2026.07.31 Gu end
 
+	// 2026.10.16 Lee start（ゴール演出を Niagara 統一の PlayGoalVFX へ置き換え。旧呼び出しは保持）
 	// 2026.10.14 Lee start
 	/** @brief 有効なゴール処理経路で、破棄前にエフェクトを一度だけ再生する。 */
-	if (GoalVFX)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
-	}
+	// if (GoalVFX)
+	// {
+	// 	UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), GoalVFX, GetActorLocation());
+	// }
 	// 2026.10.14 Lee end
+	/** @brief 破棄前に Niagara エフェクトを一度だけ再生する。 */
+	PlayGoalVFX();
+	// 2026.10.16 Lee end
 
 	Destroy();
 	return true;
 }
+
+// 2026.10.16 Lee start（ゴール演出の Niagara 統一ヘルパーを新設）
+/** @brief ゴール到達時のエフェクトを Niagara 統一で一度だけ再生する。
+ *         SpawnSystemAtLocation（AutoRelease プーリング + bAutoDestroy）で生成し、
+ *         GoalVFXEmissionDuration 経過後にコンポーネントへ Deactivate() を呼ぶ。
+ *         NS_Sparkling_Animate_2 は Loop=Infinite のため bAutoDestroy だけでは停止しない。
+ *         放出を明示的に停止することで、既存パーティクルは自然消散してプールへ戻る。
+ *         動物本体は直後に破棄されるため、タイマーは this に束縛せずワールドの
+ *         TimerManager に弱参照コンポーネントをキャプチャした lambda で登録する */
+void AAnimalBase::PlayGoalVFX()
+{
+	if (!GoalNiagaraVFX)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		World,
+		GoalNiagaraVFX,
+		GetActorLocation(),
+		FRotator::ZeroRotator,
+		FVector::OneVector,
+		true,
+		true,
+		ENCPoolMethod::AutoRelease);
+
+	if (!NiagaraComponent)
+	{
+		return;
+	}
+
+	/** @brief ClampMin はエディタ上の制約にすぎないため、コード側でも放出時間の下限を保証する。 */
+	const float EmissionDuration = FMath::Max(GoalVFXEmissionDuration, 0.01f);
+
+	/** @brief 放出時間（既定 0.5 秒）経過後の単発タイマーで Deactivate する。
+	 *         ハンドルはローカルで保持しきる（タイマーの寿命はワールドの TimerManager が管理する）。 */
+	FTimerHandle GoalVFXDeactivateHandle;
+	World->GetTimerManager().SetTimer(
+		GoalVFXDeactivateHandle,
+		[WeakComponent = TWeakObjectPtr<UNiagaraComponent>(NiagaraComponent)]()
+		{
+			/** @brief 動物の破棄やワールド終了でコンポーネントが先に消えても安全に無視する。 */
+			if (UNiagaraComponent* const Component = WeakComponent.Get())
+			{
+				Component->Deactivate();
+			}
+		},
+		EmissionDuration,
+		false);
+}
+// 2026.10.16 Lee end（ゴール演出の Niagara 統一ヘルパーを新設）
 
 // 2026.10.06 Lee start（許容・予計を厳守する整列へ修正。旧 Doxygen と旧本体はコメントとして保持）
 /** @brief 初回のみ、出現位置の最寄りセル中心へ sweep 整列してセルを読む。

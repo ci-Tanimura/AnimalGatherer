@@ -5,10 +5,6 @@
 #include "CoreMinimal.h"
 
 #include "GameFramework/Pawn.h"
-// 2026.10.08 Gu start
-// 動物がゴールに入った時再生するエフェクト
-#include "Particles/ParticleSystem.h"
-// 2026.10.08 Gu end
 #include "AnimalBase.generated.h"
 
 class USoundConcurrency;
@@ -121,15 +117,21 @@ public:
 	class UParticleSystem* GoalVFX;
 	// 2026.10.08 Gu end
 
-protected:
-	// 2026.10.06 Lee start（旧実装。現在はマス中心分割処理の新経路が使用するため未呼び出し。
-	// 既存の継承・デバッグ呼び出しを壊さないよう本体ごと保持する）
-	//足元のマスを読み取り、移動方向を変更するための入口
-	virtual void UpdateMoveDirectionFromCurrentTile(float DeltaTime);
+	// 2026.10.16 Lee start（ゴール演出を Niagara へ移行。BP データ互換のため旧
+	// Cascade 用の GoalVFX プロパティ自体は保持するが、再生には使用しない）
+	/** @brief 動物がゴールに入った時再生する Niagara エフェクト（既定は NS_Sparkling_Animate_2）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	TObjectPtr<class UNiagaraSystem> GoalNiagaraVFX = nullptr;
 
-	//現在の方向へ移動する
-	void MoveAnimal(float DeltaTime);
-	// 2026.10.06 Lee end
+	/** @brief GoalNiagaraVFX の放出（アクティブ）時間（秒）。
+	 *         経過後にコンポーネントへ Deactivate() を呼び、放出済みパーティクルを
+	 *         自然消散させてプールへ戻す（ループ設定アセットの無限再生を防止する） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects", meta = (ClampMin = "0.01"))
+	float GoalVFXEmissionDuration = 0.5f;
+
+	/** @brief ゴール到達時のエフェクト再生入口（全 Goal 経路から呼ぶ Niagara 統一ヘルパー） */
+	void PlayGoalVFX();
+	// 2026.10.16 Lee end
 
 private:
 	FIntPoint LastGridCoords = FIntPoint::ZeroValue;
