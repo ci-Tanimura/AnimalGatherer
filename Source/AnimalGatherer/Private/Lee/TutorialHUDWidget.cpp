@@ -34,6 +34,11 @@ namespace
 
 	/** @brief スナップショットの定期読み取り間隔（秒）。 */
 	constexpr float RefreshInterval = 0.1f;
+
+	// 2026.10.21 Lee start（スキップ進行バーの幅。構築時と更新時の両方で使う共有定数）
+	/** @brief 底部中央のスキップ進行バー（トラック / 塗り共通）の最大幅。640 幅の案内枠内で中央配置する。 */
+	constexpr float SkipBarTrackWidth = 600.0f;
+	// 2026.10.21 Lee end
 	// 補足: 強調ボタン名（None/DPad/LB/RB/All）は都度 FName リテラルで組み立てる
 	//（匿名名前空間のグローバル FName 定数は静的初期化順序の危険があるため使わない）
 }
@@ -155,6 +160,12 @@ void UTutorialHUDWidget::ReleaseSlateResources(bool bReleaseChildren)
 	P1SkillCooldownText = nullptr;
 	P2SkillCooldownText = nullptr;
 	// 2026.10.08 Lee 第三批 end
+	// 2026.10.21 Lee start（再構築に備えてスキップ案内の参照も解放する）
+	SkipHintPanel = nullptr;
+	SkipHintText = nullptr;
+	SkipBarTrack = nullptr;
+	SkipBarFill = nullptr;
+	// 2026.10.21 Lee end
 }
 
 //==============================================================================
@@ -198,6 +209,12 @@ void UTutorialHUDWidget::BuildNativeLayout()
 			P2SkillUsesText = Tree->FindWidget<UTextBlock>(TEXT("P2SkillUsesText"));
 			P1SkillCooldownText = Tree->FindWidget<UTextBlock>(TEXT("P1SkillCooldownText"));
 			P2SkillCooldownText = Tree->FindWidget<UTextBlock>(TEXT("P2SkillCooldownText"));
+			// 2026.10.21 Lee start（再取得経路：スキップ案内の参照も張り直す）
+			SkipHintPanel = Tree->FindWidget<UCanvasPanel>(TEXT("SkipHintPanel"));
+			SkipHintText = Tree->FindWidget<UTextBlock>(TEXT("SkipHintText"));
+			SkipBarTrack = Tree->FindWidget<UImage>(TEXT("SkipBarTrack"));
+			SkipBarFill = Tree->FindWidget<UImage>(TEXT("SkipBarFill"));
+			// 2026.10.21 Lee end
 			bNativeLayoutBuilt = true;
 			return;
 		}
@@ -307,6 +324,56 @@ void UTutorialHUDWidget::BuildNativeLayout()
 		}
 		BuildSidePanel(Tree, RightPanel, 1);
 	}
+
+	// 2026.10.21 Lee start（底部中央：チュートリアル長押しスキップの常時案内 + 進行バー。
+	//  左右の技能欄と干渉しない下端中央に置き、HitTestInvisible でフォーカスを奪わない）
+	SkipHintPanel = Tree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("SkipHintPanel"));
+	if (UCanvasPanelSlot* SkipPanelSlot = RootCanvas->AddChildToCanvas(SkipHintPanel))
+	{
+		/** @brief 下端中央・画面下端から 40px の安全余白（パネル高さ 56 の上辺を -96 に置く）。
+		 *         左右欄と重ならない 640 幅の中央枠（x 640..1280）。 */
+		SkipPanelSlot->SetAnchors(FAnchors(0.5f, 1.0f));
+		SkipPanelSlot->SetPosition(FVector2D(-320.0f, -96.0f));
+		SkipPanelSlot->SetSize(FVector2D(640.0f, 56.0f));
+	}
+	SkipHintPanel->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	SkipHintText = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SkipHintText"));
+	if (UCanvasPanelSlot* HintSlot = SkipHintPanel->AddChildToCanvas(SkipHintText))
+	{
+		HintSlot->SetPosition(FVector2D(0.0f, 0.0f));
+		HintSlot->SetSize(FVector2D(640.0f, 30.0f));
+	}
+	SkipHintText->SetJustification(ETextJustify::Center);
+	/** @brief 短縮文言（640 幅 22 号で余裕を持たせる。Menu/Start または Tab の 2 秒長押しを明示）。 */
+	// 2026.10.22 Lee start（スキップ誘導の表記を Menu から Start へ変更。Tab・2 秒長押しの要件は不変。旧文言はコメント保持）
+	// SkipHintText->SetText(FText::FromString(TEXT("Menu / Tab を 2 秒長押しでスキップ")));←元のコードは消さない
+	/** @brief スキップ誘導文言（表記を Start に差し替え。操作バインド・表示条件は既存のまま）。 */
+	SkipHintText->SetText(FText::FromString(TEXT("Start / Tab を 2 秒長押しでスキップ")));
+	// 2026.10.22 Lee endーーーーーーーーーーーーーーーーーーーーーーーーーーー
+	SkipHintText->SetFontSize(22.0f);
+	SkipHintText->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	SkipBarTrack = Tree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SkipBarTrack"));
+	if (UCanvasPanelSlot* TrackSlot = SkipHintPanel->AddChildToCanvas(SkipBarTrack))
+	{
+		/** @brief 640 幅の枠内でトラックを中央配置（左右 20px）。 */
+		TrackSlot->SetPosition(FVector2D(20.0f, 38.0f));
+		TrackSlot->SetSize(FVector2D(SkipBarTrackWidth, 14.0f));
+	}
+	SkipBarTrack->SetColorAndOpacity(FLinearColor(0.05f, 0.05f, 0.05f, 0.6f));
+	SkipBarTrack->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	SkipBarFill = Tree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("SkipBarFill"));
+	if (UCanvasPanelSlot* FillSlot = SkipHintPanel->AddChildToCanvas(SkipBarFill))
+	{
+		/** @brief 初期幅 0。以降は RefreshSkipHint が進行のみを写す（HUD は計時しない）。 */
+		FillSlot->SetPosition(FVector2D(20.0f, 38.0f));
+		FillSlot->SetSize(FVector2D(0.0f, 14.0f));
+	}
+	SkipBarFill->SetColorAndOpacity(FLinearColor(1.0f, 0.85f, 0.25f, 0.95f));
+	SkipBarFill->SetVisibility(ESlateVisibility::HitTestInvisible);
+	// 2026.10.21 Lee end
 
 	bNativeLayoutBuilt = true;
 }
@@ -504,6 +571,9 @@ void UTutorialHUDWidget::RefreshFromGameMode()
 	RefreshParticipants();
 	RefreshSkillCards();
 	RefreshSharedEffect();
+	// 2026.10.21 Lee start（長押しスキップ進行の読み取り表示を追加（読み取り専用・HUD は計時しない））
+	RefreshSkipHint();
+	// 2026.10.21 Lee end
 }
 
 void UTutorialHUDWidget::RefreshStepTexts()
@@ -1001,3 +1071,37 @@ void UTutorialHUDWidget::RefreshSharedEffect()
 	}
 	UpdateTutorialSharedSpeedEffect(Snapshot);
 }
+
+// 2026.10.21 Lee start（チュートリアル長押しスキップ案内の表示更新）
+void UTutorialHUDWidget::RefreshSkipHint()
+{
+	if (SkipHintPanel == nullptr || SkipBarFill == nullptr)
+	{
+		return;
+	}
+	const ATutorialGameMode* GameMode = Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	if (GameMode == nullptr)
+	{
+		/** @brief チュートリアル以外では案内を出さない（本 HUD はチュートリアル専用のため通常到達しない）。 */
+		SkipHintPanel->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+	SkipHintPanel->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	/** @brief 判定は各 Controller が独立に行っており、表示は双方の進行の最大値のみを写す（合成はしない）。 */
+	float MaxProgress = 0.0f;
+	for (uint8 PlayerId = 0; PlayerId < 2; ++PlayerId)
+	{
+		if (const AAnimalGatherPlayerController* PC = Cast<AAnimalGatherPlayerController>(
+			UGameplayStatics::GetPlayerController(GetWorld(), PlayerId)))
+		{
+			MaxProgress = FMath::Max(MaxProgress, PC->GetTutorialSkipHoldProgress());
+		}
+	}
+	if (UCanvasPanelSlot* FillSlot = Cast<UCanvasPanelSlot>(SkipBarFill->Slot))
+	{
+		/** @brief トラックと同じ原点で左詰めに伸ばす（0〜1 をそのまま幅へ写像。計時は各 PC 側の担当）。 */
+		FillSlot->SetSize(FVector2D(SkipBarTrackWidth * MaxProgress, 14.0f));
+	}
+}
+// 2026.10.21 Lee end

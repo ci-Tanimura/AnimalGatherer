@@ -16,6 +16,9 @@ class USoundConcurrency;
 // 2026.10.06 Lee start
 class USkillSystemComponent;
 // 2026.10.06 Lee end
+// 2026.10.21 Lee start（チュートリアル長押しスキップ：専用 IMC 解除の引数型）
+class ULocalPlayer;
+// 2026.10.21 Lee end
 struct FInputActionValue;
 
 /**
@@ -216,6 +219,17 @@ public:
 	void NotifySkillButtonReleased(bool bSpeed);
 	// 2026.10.06 Lee end（B2）
 
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ：進行の読み取り専用照会）
+	/**
+	 * @brief チュートリアル長押しスキップの現在進行（0.0〜1.0）を返す（HUD の表示用。計時はしない）。
+	 *        チュートリアル以外のレベルでは常に 0。進行は各 Controller が独立に保持し、
+	 *        相手の進行とは合成・接続しない。
+	 * @return 連続保持時間 / 必要時間 の割合。
+	 */
+	UFUNCTION(BlueprintPure, Category = "Input")
+	float GetTutorialSkipHoldProgress() const;
+	// 2026.10.21 Lee end
+
 	/**
 	 * @brief 指定 Tag を持つ CameraActor に視点を切り替える。
 	 * @param CameraTag 対象カメラの Actor Tag。
@@ -227,6 +241,11 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void SetPlayer(UPlayer* InPlayer) override;
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップの毎フレーム計時）
+	/** @brief 毎フレーム：押下中のみ連続保持時間を加算し、規定時間到達で GameMode へ要求する。 */
+	virtual void Tick(float DeltaTime) override;
+	// 2026.10.21 Lee end
 
 	// 2026.10.06 Lee start
 	/** @brief Pawn 保持時：Cursor の実マップ参照を優先して取り込み、スキル初期化を依頼する。 */
@@ -347,4 +366,69 @@ private:
 	/** @brief 加速スキルの再武装待ち（解放イベント後のみ Started を受付）。 */
 	bool bSkillSpeedAwaitRelease = false;
 	// 2026.10.06 Lee end
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ：実行時生成の専用入力と独立計時）
+	//==============================================================================
+	// チュートリアル長押しスキップ（MenuPlayerController と同様の実行時生成 IA / IMC。
+	// チュートリアル GameMode のレベルでのみ生成・登録し、正式試合・メニューには漏らさない）
+	//==============================================================================
+
+	/** @brief 長押しスキップの進行状態。 */
+	enum class ETutorialSkipHoldState : uint8
+	{
+		/** @brief 未押下（進行なし）。 */
+		Idle,
+		/** @brief 押下中（連続計時中）。 */
+		Holding,
+		/** @brief 要求済み（しきい値到達後は再計時・再要求しない）。 */
+		Triggered
+	};
+
+	/** @brief チュートリアル長押しスキップが有効なレベルか（現 GameMode がチュートリアルか）。 */
+	bool IsTutorialSkipInputAvailable() const;
+
+	/** @brief スキップ用 IA / IMC を実行時生成する（アセット非依存・冪等）。 */
+	void BuildTutorialSkipInputAssets();
+
+	/** @brief スキップ専用 IMC を自 LocalPlayer の Enhanced Input サブシステムへ登録する（重複登録なし）。 */
+	void RegisterTutorialSkipMappingContext();
+
+	/** @brief スキップ専用 IMC の登録を解除する（切図・終了後の入力残留防止）。 */
+	void UnregisterTutorialSkipMappingContext();
+
+	/**
+	 * @brief 指定 LocalPlayer のサブシステムからスキップ専用 IMC を解除する。
+	 * @param InLocalPlayer 解除対象の LocalPlayer。
+	 */
+	void UnregisterTutorialSkipMappingContextFrom(ULocalPlayer* InLocalPlayer);
+
+	/** @brief スキップ IA の Started 処理（連続計時を 0 から開始する）。 */
+	void OnTutorialSkipStarted(const FInputActionValue& Value);
+
+	/** @brief スキップ IA の Completed / Canceled 処理（連続進行を破棄する）。 */
+	void OnTutorialSkipReleased(const FInputActionValue& Value);
+
+	/** @brief スキップ用 Input Action（手柄 Menu / キーボード Tab・実行時生成）。
+	 *         private 欄のため Blueprint アクセス指定子は付けない（UHT の private 属性
+	 *         Blueprint アクセス制限のため）。UPROPERTY 登録によりリフレクション経由の参照は可能。 */
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Input|TutorialSkip")
+	TObjectPtr<UInputAction> IA_TutorialSkip = nullptr;
+
+	/** @brief スキップ専用 Input Mapping Context（実行時生成・対戦用 IMC を含まない。Blueprint 指定子なし）。 */
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Input|TutorialSkip")
+	TObjectPtr<UInputMappingContext> IMC_TutorialSkip = nullptr;
+
+	/** @brief スキップ成立に必要な連続保持時間（秒）。既定 2 秒。Blueprint 指定子なし。 */
+	UPROPERTY(EditAnywhere, Category = "Input|TutorialSkip", meta = (ClampMin = "0.5", ClampMax = "10.0", Units = "s"))
+	float TutorialSkipHoldDuration = 2.0f;
+
+	/** @brief 長押し進行状態（Player ごとに独立・相手の進行と合成しない）。 */
+	ETutorialSkipHoldState TutorialSkipHoldState = ETutorialSkipHoldState::Idle;
+
+	/** @brief 現在の連続保持時間（秒）。解放・失焦・切断・切図で 0 に戻す。 */
+	double TutorialSkipHoldElapsed = 0.0;
+
+	/** @brief スキップ専用 IMC の登録済みフラグ（Player 再関連付け時の解除判定用）。 */
+	bool bTutorialSkipIMCRegistered = false;
+	// 2026.10.21 Lee end
 };
