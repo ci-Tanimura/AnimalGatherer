@@ -18,7 +18,7 @@ enum class EGridDirection : uint8
 };
 
 /**
- * 盤面を矢印の向きに進む動物（盤外へ出そうになったら折り返す）
+ * 盤面を矢印の向きに進む動物（盤外へ出たら海へ落下する）
  */
 UCLASS()
 class ANIMALGATHERER_API AAnimalBase_New : public AActor
@@ -33,6 +33,14 @@ public:
 	// 1マス進むのに必要な秒数
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal", meta = (ClampMin = "0.01", UIMin = "0.01"))
 	float SecondsPerCell = 1.0f;
+
+	// 落下時の重力加速度（cm/s^2）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float FallGravity = 980.0f;
+
+	// 落ち始めてから消えるまでの深さ（cm）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float FallKillDepth = 2000.0f;
 
 	// 盤面と初期の向きを受け取る
 	UFUNCTION(BlueprintCallable, Category = "Animal")
@@ -68,6 +76,15 @@ private:
 	FVector SegmentStart = FVector::ZeroVector;
 	FVector SegmentEnd = FVector::ZeroVector;
 
+	// 盤外へ出て落下中か
+	bool bFalling = false;
+
+	// 落下中の落下速度（cm/s）
+	float FallSpeed = 0.0f;
+
+	// 落下を始めた高さ
+	float FallStartZ = 0.0f;
+
 	// 補間を進め、完了したら到達処理へ引き渡す
 	void Advance(float DeltaSeconds);
 
@@ -79,6 +96,12 @@ private:
 
 	// 今向いている方向へ1マス進む区間を開始する
 	void StepForward();
+
+	// 盤外へ出た動物の落下を開始する
+	void StartFalling();
+
+	// 重力に従って落下し、規定の深さで消える
+	void Fall(float DeltaSeconds);
 
 	// 自分の座標から現在いるマスを求める
 	FIntPoint ResolveCurrentCell() const;
@@ -103,7 +126,4 @@ private:
 
 	// 向きをグリッドの移動量へ変換する
 	static FIntPoint ToDelta(EGridDirection Direction);
-
-	// 向きを反転する
-	static EGridDirection Reverse(EGridDirection Direction);
 };

@@ -47,6 +47,12 @@ void AAnimalBase_New::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// 落下中は移動ではなく落下だけを進める
+	if (bFalling) {
+		Fall(DeltaSeconds);
+		return;
+	}
+
 	Advance(DeltaSeconds);
 }
 
@@ -69,6 +75,13 @@ void AAnimalBase_New::Advance(float DeltaSeconds)
 	// 到達先を現在マスへ確定してから到達処理を行う
 	CurrentCell = TargetCell;
 	SetActorLocation(SegmentEnd, false);
+
+	// 盤外のマスへ出た場合は移動を続けず落下へ移行する
+	if (!IsInside(CurrentCell)) {
+		StartFalling();
+		return;
+	}
+
 	EnterCell();
 }
 
@@ -106,18 +119,8 @@ void AAnimalBase_New::StepForward()
 		return;
 	}
 
-	FIntPoint NextCell = CurrentCell + ToDelta(Facing);
-
-	// 盤外へ出る場合は向きを反転して折り返す
-	if (!IsInside(NextCell)) {
-		TurnTo(Reverse(Facing));
-		NextCell = CurrentCell + ToDelta(Facing);
-	}
-
-	// 反転しても盤内へ入れない場合は移動を中断する
-	if (!IsInside(NextCell)) {
-		return;
-	}
+	// 盤外でもそのまま進ませ、到達後に落下させる
+	const FIntPoint NextCell = CurrentCell + ToDelta(Facing);
 
 	// 補間区間を確定して移動を開始する
 	TargetCell = NextCell;
@@ -182,6 +185,29 @@ FVector AAnimalBase_New::CellToWorld(const FIntPoint& Cell) const
 	return Center;
 }
 
+// 盤外へ出た動物の落下を開始する
+void AAnimalBase_New::StartFalling()
+{
+	bFalling = true;
+	FallSpeed = 0.0f;
+	FallStartZ = GetActorLocation().Z;
+}
+
+// 重力に従って落下し、規定の深さまで落ちたら消える
+void AAnimalBase_New::Fall(float DeltaSeconds)
+{
+	FallSpeed += FallGravity * DeltaSeconds;
+
+	FVector Location = GetActorLocation();
+	Location.Z -= FallSpeed * DeltaSeconds;
+	SetActorLocation(Location, false);
+
+	// 規定の深さまで落ちた動物は消す
+	if (FallStartZ - Location.Z >= FallKillDepth) {
+		Destroy();
+	}
+}
+
 // 盤面が注入されているか
 bool AAnimalBase_New::HasGridMap() const
 {
@@ -233,26 +259,5 @@ FIntPoint AAnimalBase_New::ToDelta(EGridDirection Direction)
 
 	default:
 		return FIntPoint::ZeroValue;
-	}
-}
-
-// 向きを反転する（盤外へ出そうになった際の折り返しに使用）
-EGridDirection AAnimalBase_New::Reverse(EGridDirection Direction)
-{
-	switch (Direction) {
-	case EGridDirection::Up:
-		return EGridDirection::Down;
-
-	case EGridDirection::Down:
-		return EGridDirection::Up;
-
-	case EGridDirection::Left:
-		return EGridDirection::Right;
-
-	case EGridDirection::Right:
-		return EGridDirection::Left;
-
-	default:
-		return EGridDirection::None;
 	}
 }

@@ -107,6 +107,14 @@ void AAnimalBase::Tick(float DeltaTime)
 	}
 	// 2026.10.06 Lee end（Goal 処理済み・破壊開始済みの再 Tick を遮断する）
 
+	// 2026.10.22 Tanimura start------------------------------------------------
+	// 落下中は移動とセル読み取りを行わず落下だけを進める
+	if (bFalling) {
+		UpdateFall(DeltaTime);
+		return;
+	}
+	// 2026.10.22 Tanimura end--------------------------------------------------
+
 	// 2026.10.06 Lee start（権威倍率照会 → 試合段階判定 → 分割移動の新経路）
 	// 権威倍率を毎フレーム照会し、変化があった場合のみアニメ入口へ通知する
 	RefreshSpeedMultiplier();
@@ -118,9 +126,24 @@ void AAnimalBase::Tick(float DeltaTime)
 		return;
 	}
 
+	// 2026.10.22 Tanimura start------------------------------------------------
+	// 開始時点で盤外にいる動物は移動せずその場で落下する
+	if (IsOutsideBoard()) {
+		StartFalling();
+		return;
+	}
+	// 2026.10.22 Tanimura end--------------------------------------------------
+
 	// 有効速度（共有加速を含む）で今フレーム分を移動する。
 	// 進行上のセル中心ごとに区間を分割し、中心到達時に方向 / Goal を読む
 	MoveAlongGrid(DeltaTime);
+
+	// 2026.10.22 Tanimura start------------------------------------------------
+	// 移動の結果として盤外へ出た場合は落下へ移行する
+	if (IsOutsideBoard()) {
+		StartFalling();
+	}
+	// 2026.10.22 Tanimura end--------------------------------------------------
 	// 2026.10.06 Lee end
 }
 
@@ -1074,6 +1097,14 @@ void AAnimalBase::MoveAlongGrid(float DeltaTime)
 
 		Remaining -= SegmentDistance;
 
+		// 2026.10.22 Tanimura start------------------------------------------------
+		// 盤外へ出た時点で残りの移動とセル読み取りを打ち切る
+		if (IsOutsideBoard()) {
+			StartFalling();
+			return;
+		}
+		// 2026.10.22 Tanimura end--------------------------------------------------
+
 		if (SegmentDistance >= DistanceToCenter - KINDA_SMALL_NUMBER)
 		{
 			// 区間がセル中心に到達した場合のみ読み取る。unswept の強制整列は行わず、
@@ -1100,3 +1131,68 @@ void AAnimalBase::MoveAlongGrid(float DeltaTime)
 }
 // 2026.10.06 Lee end（固定区間上限の廃止・前提値検証・横ずれ保護・進行保証へ修正）
 // 2026.10.06 Lee end
+
+// 2026.10.22 Tanimura start------------------------------------------------
+//最寄りセルが盤面内でなければ盤外とみなす
+//マップ未設定・interface 未実装・落下無効時は常に false
+bool AAnimalBase::IsOutsideBoard() const
+{
+	if (!bFallOffBoard || MapActor == nullptr) {
+		return false;
+	}
+
+	if (!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass())) {
+		return false;
+	}
+
+	// タイル外周を越えた時点で最寄りセルが範囲外になる
+	const FIntPoint NearestGridCoords = WorldToNearestGrid(GetActorLocation());
+	return !IGridInteractInterface::Execute_IsValidCoord(MapActor, NearestGridCoords);
+}
+
+//盤外へ出た動物の落下を開始する（開始時の速度は 0）
+void AAnimalBase::StartFalling()
+{
+	// 二重 Tick や多重呼び出しで落下速度を初期化し直さない
+	if (bFalling) {
+		return;
+	}
+
+	bFalling = true;
+	FallSpeed = 0.0f;
+	FallStartZ = GetActorLocation().Z;
+
+	// 盤外へ出た瞬間の移動速度を水平慣性として引き継ぐ
+	const float HorizontalSpeed = GetEffectiveMoveSpeed();
+	if (FMath::IsFinite(HorizontalSpeed) && HorizontalSpeed > 0.0f) {
+		FallHorizontalVelocity = CurrentMoveDirection * HorizontalSpeed;
+	} else {
+		FallHorizontalVelocity = FVector::ZeroVector;
+	}
+}
+
+//等加速度で落下し、FallKillDepth まで落ちた動物は破棄する
+void AAnimalBase::UpdateFall(float DeltaTime)
+{
+	if (!FMath::IsFinite(DeltaTime) || DeltaTime <= 0.0f) {
+		return;
+	}
+
+	// 重力加速度を積算して落下速度を求める
+	FallSpeed += FallGravity * DeltaTime;
+
+	FVector Location = GetActorLocation();
+
+	// 水平方向は盤外へ出た瞬間の速度を維持する（慣性）
+	Location += FallHorizontalVelocity * DeltaTime;
+	Location.Z -= FallSpeed * DeltaTime;
+
+	// 落下中は地面や壁に阻まれず落下させたいため sweep は行わない
+	SetActorLocation(Location, false);
+
+	// 規定の深さまで落ちた動物は破棄する
+	if (FallStartZ - Location.Z >= FallKillDepth) {
+		Destroy();
+	}
+}
+// 2026.10.22 Tanimura end--------------------------------------------------
