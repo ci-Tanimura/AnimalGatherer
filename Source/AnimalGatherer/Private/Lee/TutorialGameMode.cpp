@@ -180,6 +180,13 @@ ETutorialStep ATutorialGameMode::GetCurrentStep() const
 // }
 bool ATutorialGameMode::IsPlacementAllowed(uint8 PlayerID, FIntPoint Cell) const
 {
+	// 2026.10.21 Lee start（スキップ要求後はチュートリアルの全配置を封鎖する）
+	if (bSkipRequested)
+	{
+		return false;
+	}
+	// 2026.10.21 Lee end
+
 	// 2026.10.08 Lee 返工 start（ScoreGoal 中は観察のみとし配置を禁止する。
 	//  得点後に誤った向きへ置き直すと反転演示の返却経路が保証できなくなるため）
 	// 基礎ステップは従来どおり自プレイヤーの干渉セルのみ許可する（ScoreGoal を除く）
@@ -759,6 +766,55 @@ void ATutorialGameMode::FinishTutorial()
 	}
 }
 
+// 2026.10.21 Lee start（チュートリアル長押しスキップ：受領と冪等遷移）
+void ATutorialGameMode::RequestSkipTutorial(uint8 PlayerId)
+{
+	/** @brief 冪等：2 回目以降の要求は何もしない（遷移の二重実行を防ぐ）。 */
+	if (bSkipRequested)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] スキップ要求は受領済みのため無視します (Player%u)"), PlayerId);
+		return;
+	}
+	/** @brief 身分は 0 / 1 のみ受理する。 */
+	if (PlayerId != 0 && PlayerId != 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TutorialGameMode] スキップ要求を拒否: 無効な PlayerId=%u"), PlayerId);
+		return;
+	}
+	/** @brief 遷移先が未設定の場合は教程を壊さず拒否する（現在の進行はそのまま継続する）。 */
+	if (TutorialEndLevelName.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[TutorialGameMode] スキップ要求を拒否: 遷移先レベル未設定のため教程を継続します (Player%u)"), PlayerId);
+		return;
+	}
+
+	/** @brief 受領。以後の進行・技能・配置の権限を封鎖する。 */
+	bSkipRequested = true;
+	/** @brief 達成ポーリングとフェーズ進行タイマーを停止する（Intro / 観察待ち / Complete 遷移待ちも即時封鎖）。 */
+	GetWorldTimerManager().ClearTimer(PollTimerHandle);
+	GetWorldTimerManager().ClearTimer(PhaseTimerHandle);
+	/** @brief 技能の使用可否を閉じる（IsSkillUseAllowed 側の封鎖と二重化）。 */
+	SetTutorialSkillsEnabled(false);
+	/** @brief 共有加速効果を即時解除する（残留タイマーも停止される）。 */
+	if (UMatchSkillEffectComponent* Effect = GetMatchSkillEffect())
+	{
+		Effect->ClearEffects();
+	}
+	/** @brief 生成停止と実行中動物の破棄、ハイライトの掃除（演示動物を含む）。 */
+	ClearRuntimeAnimals();
+	ClearHighlights();
+	UE_LOG(LogTemp, Display, TEXT("[TutorialGameMode] 長押しスキップ受領: Player%u。完了演出を省略して遷移します"), PlayerId);
+
+	/** @brief 完了演出は偽装放送せず、既存の遷移経路（スロット保持指示 + OpenLevel）をそのまま使う。 */
+	FinishTutorial();
+}
+
+bool ATutorialGameMode::HasTutorialSkipBeenRequested() const
+{
+	return bSkipRequested;
+}
+// 2026.10.21 Lee end
+
 void ATutorialGameMode::ApplyPreplacedTiles()
 {
 	if (!CachedMapManager)
@@ -964,6 +1020,12 @@ bool ATutorialGameMode::SupportsSkillInitialization() const
 
 bool ATutorialGameMode::IsSkillUseAllowed(uint8 PlayerId, int32 SlotIndex) const
 {
+	// 2026.10.21 Lee start（スキップ要求後は全技能使用を封鎖する）
+	if (bSkipRequested)
+	{
+		return false;
+	}
+	// 2026.10.21 Lee end
 	// 成功受領済みなら即拒否（同フレームの重複施放・長押しの追加消費を防ぐ）
 	if (bSkillAccepted)
 	{

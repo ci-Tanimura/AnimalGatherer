@@ -139,6 +139,11 @@ private:
 	/** @brief 共有加速の残り時間を更新し UpdateTutorialSharedSpeedEffect を放送する。 */
 	void RefreshSharedEffect();
 
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ案内の表示更新）
+	/** @brief 両 Controller の長押し進行を読み取り、底部の案内と進行バー（双方の最大値）を更新する。 */
+	void RefreshSkipHint();
+	// 2026.10.21 Lee end
+
 	/** @brief 参加者表示の算出結果。 */
 	struct FParticipantDisplay
 	{
@@ -234,6 +239,24 @@ private:
 	/** @brief 2P 側クールダウン表示。 */
 	UPROPERTY()
 	TObjectPtr<UTextBlock> P2SkillCooldownText = nullptr;
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ案内：底部中央の原生レイアウト参照）
+	/** @brief 底部中央のスキップ案内グループ（常時表示・フォーカスを奪わない）。 */
+	UPROPERTY()
+	TObjectPtr<UCanvasPanel> SkipHintPanel = nullptr;
+
+	/** @brief スキップ操作の案内文。 */
+	UPROPERTY()
+	TObjectPtr<UTextBlock> SkipHintText = nullptr;
+
+	/** @brief 進行バーの底（トラック）。 */
+	UPROPERTY()
+	TObjectPtr<UImage> SkipBarTrack = nullptr;
+
+	/** @brief 進行バーの塗り（双方の最大進行を表示。判定は各 Controller 独立のまま）。 */
+	UPROPERTY()
+	TObjectPtr<UImage> SkipBarFill = nullptr;
+	// 2026.10.21 Lee end
 
 	/** @brief スナップショット定期読み取り用タイマー（0.1 秒）。 */
 	FTimerHandle RefreshTimerHandle;

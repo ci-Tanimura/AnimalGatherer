@@ -19,6 +19,12 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+// 2026.10.21 Lee start（チュートリアル長押しスキップ：実行時入力資産の生成に必要）
+#include "InputAction.h"
+#include "InputCoreTypes.h"
+#include "InputMappingContext.h"
+#include "Engine/LocalPlayer.h"
+// 2026.10.21 Lee end
 
 AAnimalGatherPlayerController::AAnimalGatherPlayerController()
 {
@@ -134,11 +140,31 @@ void AAnimalGatherPlayerController::BeginPlay()
 	// 2026.10.06 Lee start（地図検索後に普通対戦のスキル初期化を依頼：未整備時は GameMode 側で再試行）
 	TryInitializeMatchSkillsIfReady();
 	// 2026.10.06 Lee end
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ：実行時資産の生成と専用 IMC の登録（冪等・チュートリアルのみ））
+	if (IsTutorialSkipInputAvailable())
+	{
+		BuildTutorialSkipInputAssets();
+		RegisterTutorialSkipMappingContext();
+	}
+	// 2026.10.21 Lee end
 }
 
 void AAnimalGatherPlayerController::SetPlayer(UPlayer* InPlayer)
 {
+	// 2026.10.21 Lee start（Player 再関連付け時に旧 LocalPlayer への専用 IMC 登録を解除するため、Super 前に旧参照を採取する）
+	ULocalPlayer* PreviousLocalPlayer = GetLocalPlayer();
+	const bool bWasSkipIMCRegistered = bTutorialSkipIMCRegistered;
+	// 2026.10.21 Lee end
+
 	Super::SetPlayer(InPlayer);
+
+	// 2026.10.21 Lee start（切図後も LocalPlayer は生存するため、別 Player への再関連付け時は旧側の登録を必ず解く）
+	if (PreviousLocalPlayer != nullptr && PreviousLocalPlayer != GetLocalPlayer() && bWasSkipIMCRegistered)
+	{
+		UnregisterTutorialSkipMappingContextFrom(PreviousLocalPlayer);
+	}
+	// 2026.10.21 Lee end
 
 	if (ULocalPlayer* LP = Cast<ULocalPlayer>(InPlayer))
 	{
@@ -158,6 +184,14 @@ void AAnimalGatherPlayerController::SetPlayer(UPlayer* InPlayer)
 			}
 		}
 	}
+
+	// 2026.10.21 Lee start（Player 関連付け後に専用資産の生成と IMC 登録を保証する（チュートリアルのみ））
+	if (IsTutorialSkipInputAvailable())
+	{
+		BuildTutorialSkipInputAssets();
+		RegisterTutorialSkipMappingContext();
+	}
+	// 2026.10.21 Lee end
 
 	// 2026.10.06 Lee start（Player 関連付け後にもスキル初期化を依頼：地図未バインド時は GameMode 側で判定する）
 	TryInitializeMatchSkillsIfReady();
@@ -253,6 +287,22 @@ void AAnimalGatherPlayerController::SetupInputComponent()
 	{
 		EIC->BindAction(IA_Set_Right, ETriggerEvent::Started, this, &AAnimalGatherPlayerController::OnPlaceRight);
 	}
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ：専用 IA のバインド（Started で計時開始、
+	//  Completed / Canceled で進行破棄。既存の Enhanced 再作成 workaround と IMC_P1 / IMC_P2 の登録は触れない））
+	if (IsTutorialSkipInputAvailable())
+	{
+		BuildTutorialSkipInputAssets();
+		if (IA_TutorialSkip)
+		{
+			EIC->BindAction(IA_TutorialSkip, ETriggerEvent::Started, this, &AAnimalGatherPlayerController::OnTutorialSkipStarted);
+			EIC->BindAction(IA_TutorialSkip, ETriggerEvent::Completed, this, &AAnimalGatherPlayerController::OnTutorialSkipReleased);
+			EIC->BindAction(IA_TutorialSkip, ETriggerEvent::Canceled, this, &AAnimalGatherPlayerController::OnTutorialSkipReleased);
+		}
+		/** @brief SetupInputComponent は SetPlayer 内の LocalPlayer 関連付け後に呼ばれるため、ここでも登録を試みる。 */
+		RegisterTutorialSkipMappingContext();
+	}
+	// 2026.10.21 Lee end
 }
 
 //==============================================================================
@@ -537,6 +587,12 @@ void AAnimalGatherPlayerController::EndPlay(const EEndPlayReason::Type EndPlayRe
 	// 連移タイマーの残留を防ぐ。
 	GetWorldTimerManager().ClearTimer(AutoRepeatHandle);
 
+	// 2026.10.21 Lee start（長押し進行の破棄と専用 IMC の解除（切図・終了後の入力残留防止））
+	TutorialSkipHoldState = ETutorialSkipHoldState::Idle;
+	TutorialSkipHoldElapsed = 0.0;
+	UnregisterTutorialSkipMappingContext();
+	// 2026.10.21 Lee end
+
 	// 2026.10.14 Lee start
 	if (SkillSystemComponent != nullptr)
 	{
@@ -725,6 +781,12 @@ void AAnimalGatherPlayerController::ResetTransientInput(bool bRequireSkillReleas
 	HeldInputValue = FVector2D::ZeroVector;
 	GetWorldTimerManager().ClearTimer(AutoRepeatHandle);
 
+	// 2026.10.21 Lee start（失焦・切断・再接続時はチュートリアル長押しの連続進行も破棄する。
+	//  再計時はビューポート物理門を通った新しい Started（実押下）からのみ行う。既存のスキル解放意味は変更しない）
+	TutorialSkipHoldState = ETutorialSkipHoldState::Idle;
+	TutorialSkipHoldElapsed = 0.0;
+	// 2026.10.21 Lee end
+
 	// スキルの押下状態もクリア。要求時は解放イベント後のみ再武装する。
 	bSkillReverseAwaitRelease = bRequireSkillRelease;
 	bSkillSpeedAwaitRelease = bRequireSkillRelease;
@@ -758,7 +820,11 @@ bool AAnimalGatherPlayerController::IsGameplayActionAllowed() const
 	// それ以外の教程ステップは従来どおり許可）
 	if (const ATutorialGameMode* TutorialMode = Cast<ATutorialGameMode>(Mode))
 	{
-		return TutorialMode->GetCurrentStep() != ETutorialStep::Complete;
+		// 2026.10.21 Lee start（スキップ要求後は移動・配置・技能の全操作を封鎖する。旧実装はコメント保持）
+		// return TutorialMode->GetCurrentStep() != ETutorialStep::Complete;
+		return TutorialMode->GetCurrentStep() != ETutorialStep::Complete
+			&& !TutorialMode->HasTutorialSkipBeenRequested();
+		// 2026.10.21 Lee end
 	}
 	// 2026.10.08 Lee 第三批修正 end
 
@@ -832,6 +898,152 @@ void AAnimalGatherPlayerController::OnSkillSpeedReleased(const FInputActionValue
 
 //==============================================================================
 // 2026.10.06 Lee end（スキルシステム・一時入力の追加実装）
+//==============================================================================
+
+//==============================================================================
+// 2026.10.21 Lee start（チュートリアル長押しスキップ：実行時入力と独立計時）
+//==============================================================================
+
+void AAnimalGatherPlayerController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	/** @brief 押下中のみ連続保持時間を加算する（Idle / Triggered では進行しない）。 */
+	if (TutorialSkipHoldState == ETutorialSkipHoldState::Holding)
+	{
+		TutorialSkipHoldElapsed += DeltaTime;
+		if (TutorialSkipHoldElapsed >= TutorialSkipHoldDuration)
+		{
+			/** @brief しきい値到達：状態を要求済みへ固定し、以後の再計時・再要求を防ぐ（冪等は GameMode 側でも保証）。 */
+			TutorialSkipHoldState = ETutorialSkipHoldState::Triggered;
+			if (ATutorialGameMode* TutorialMode = Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(this)))
+			{
+				UE_LOG(LogTemp, Display, TEXT("AnimalGatherPC: チュートリアル長押しスキップ成立 (PlayerId=%u)"), GetSkillPlayerId());
+				TutorialMode->RequestSkipTutorial(GetSkillPlayerId());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("AnimalGatherPC: 長押しが規定時間に達したがチュートリアル GameMode が不在のため要求しない"));
+			}
+		}
+	}
+}
+
+float AAnimalGatherPlayerController::GetTutorialSkipHoldProgress() const
+{
+	/** @brief チュートリアル以外では常に 0（HUD が正式試合などで進行を表示しないための保証）。 */
+	if (!IsTutorialSkipInputAvailable())
+	{
+		return 0.0f;
+	}
+	const float SafeDuration = FMath::Max(TutorialSkipHoldDuration, KINDA_SMALL_NUMBER);
+	return FMath::Clamp(static_cast<float>(TutorialSkipHoldElapsed) / SafeDuration, 0.0f, 1.0f);
+}
+
+bool AAnimalGatherPlayerController::IsTutorialSkipInputAvailable() const
+{
+	/** @brief 現 World の GameMode がチュートリアルの場合のみ有効（正式試合・メニューでは生成も登録もバインドもしない）。 */
+	return Cast<ATutorialGameMode>(UGameplayStatics::GetGameMode(this)) != nullptr;
+}
+
+void AAnimalGatherPlayerController::BuildTutorialSkipInputAssets()
+{
+	/** @brief 既に生成済みなら何もしない。 */
+	if (IA_TutorialSkip && IMC_TutorialSkip)
+	{
+		return;
+	}
+
+	/** @brief スキップ用 Input Action（Boolean・実行時生成）。 */
+	IA_TutorialSkip = NewObject<UInputAction>(this, TEXT("IA_TutorialSkip"));
+
+	/** @brief スキップ専用 IMC（対戦用 IMC_P1 / IMC_P2 を含まない）。
+	 *         手柄 Menu / Start（Gamepad_Special_Right）とキーボード Tab の両方を受け付ける。 */
+	IMC_TutorialSkip = NewObject<UInputMappingContext>(this, TEXT("IMC_TutorialSkip"));
+	IMC_TutorialSkip->MapKey(IA_TutorialSkip, EKeys::Gamepad_Special_Right);
+	IMC_TutorialSkip->MapKey(IA_TutorialSkip, EKeys::Tab);
+}
+
+void AAnimalGatherPlayerController::RegisterTutorialSkipMappingContext()
+{
+	if (!IMC_TutorialSkip)
+	{
+		BuildTutorialSkipInputAssets();
+	}
+
+	ULocalPlayer* LP = GetLocalPlayer();
+	if (!LP)
+	{
+		/** @brief BeginPlay が SetPlayer より先に走ったケース。SetPlayer / SetupInputComponent で再試行される。 */
+		return;
+	}
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
+	{
+		if (!Subsystem->HasMappingContext(IMC_TutorialSkip))
+		{
+			/** @brief 高優先度で登録し、対戦用 IMC（優先度 0）とのキー競合時はチュートリアル側を先に解決させる。 */
+			constexpr int32 TutorialSkipMappingContextPriority = 100;
+			Subsystem->AddMappingContext(IMC_TutorialSkip, TutorialSkipMappingContextPriority);
+			UE_LOG(LogTemp, Log, TEXT("AnimalGatherPC: IMC_TutorialSkip registered (ControllerId=%d)"), LP->GetControllerId());
+		}
+		bTutorialSkipIMCRegistered = true;
+	}
+}
+
+void AAnimalGatherPlayerController::UnregisterTutorialSkipMappingContext()
+{
+	UnregisterTutorialSkipMappingContextFrom(GetLocalPlayer());
+}
+
+void AAnimalGatherPlayerController::UnregisterTutorialSkipMappingContextFrom(ULocalPlayer* InLocalPlayer)
+{
+	if (!IMC_TutorialSkip || !InLocalPlayer)
+	{
+		return;
+	}
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(InLocalPlayer))
+	{
+		if (Subsystem->HasMappingContext(IMC_TutorialSkip))
+		{
+			Subsystem->RemoveMappingContext(IMC_TutorialSkip);
+			UE_LOG(LogTemp, Log, TEXT("AnimalGatherPC: IMC_TutorialSkip unregistered (ControllerId=%d)"), InLocalPlayer->GetControllerId());
+		}
+	}
+
+	if (InLocalPlayer == GetLocalPlayer())
+	{
+		bTutorialSkipIMCRegistered = false;
+	}
+}
+
+void AAnimalGatherPlayerController::OnTutorialSkipStarted(const FInputActionValue& Value)
+{
+	/** @brief チュートリアル以外では何もしない（正式試合・メニューへ機能を漏らさない）。 */
+	if (!IsTutorialSkipInputAvailable())
+	{
+		return;
+	}
+	/** @brief 要求済み後の再押下は無視する（遷移中の二重要求防止。冪等は GameMode 側でも保証）。 */
+	if (TutorialSkipHoldState == ETutorialSkipHoldState::Triggered)
+	{
+		return;
+	}
+	/** @brief 押下ごとに進行を 0 から数え直す（途中解放した進行の接続・累算を禁止する）。 */
+	TutorialSkipHoldState = ETutorialSkipHoldState::Holding;
+	TutorialSkipHoldElapsed = 0.0;
+}
+
+void AAnimalGatherPlayerController::OnTutorialSkipReleased(const FInputActionValue& Value)
+{
+	/** @brief Completed / Canceled 共通：解放した時点で連続進行を破棄する（再押下で 0 からやり直し）。 */
+	TutorialSkipHoldState = ETutorialSkipHoldState::Idle;
+	TutorialSkipHoldElapsed = 0.0;
+}
+
+//==============================================================================
+// 2026.10.21 Lee end（チュートリアル長押しスキップ：実行時入力と独立計時）
 //==============================================================================
 
 //==============================================================================

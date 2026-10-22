@@ -255,6 +255,21 @@ public:
 	// 2026.10.08 Lee 第三批 end
 	// 2026.10.08 Lee end
 
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ）
+	/**
+	 * @brief チュートリアルの長押しスキップ要求（PlayerController から受領する）。
+	 *        冪等。受領後は進行・技能・配置の権限を封鎖し、達成ポーリングとフェーズタイマー、
+	 *        共有効果・動物・ハイライトを片付けてから、既存 FinishTutorial 経路でレベル遷移する。
+	 *        完了演出（OnTutorialComplete）は偽装放送せず、通常完了経路の表示と遅延は変更しない。
+	 *        遷移先が未設定の場合は教程を壊さず拒否してログに記録する。
+	 * @param PlayerId 要求したプレイヤーID（0 = 1P / 1 = 2P）。
+	 */
+	void RequestSkipTutorial(uint8 PlayerId);
+
+	/** @brief スキップ要求の受領済みか（権限封鎖と冪等判定に使う）。 */
+	bool HasTutorialSkipBeenRequested() const;
+	// 2026.10.21 Lee end
+
 	// ステップ変化通知（Widget が購読する）
 	UPROPERTY(BlueprintAssignable, Category = "Tutorial|Events")
 	FOnTutorialStepChanged OnTutorialStepChanged;
@@ -523,4 +538,9 @@ private:
 	/** @brief 反転観察で演示動物が実際に読み取るべき返却セル。 */
 	FIntPoint ObserveReturnCell = FIntPoint(ForceInit);
 	// 2026.10.08 Lee end
+
+	// 2026.10.21 Lee start（チュートリアル長押しスキップ）
+	/** @brief 長押しスキップ要求の受領済みフラグ（冪等保証と権限封鎖に使う）。 */
+	bool bSkipRequested = false;
+	// 2026.10.21 Lee end
 };
