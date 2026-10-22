@@ -188,11 +188,15 @@ ESkillUseResult USkillDef_ReverseArrows::ExecuteSkill(const FSkillContext& Conte
 			continue;
 		}
 
+		// 2026.10.22 Lee start（ボーダー除外の廃止：相手が外周へ配置した矢印も反転計画に含める。旧コードは残す）
 		// 外周ボーダーは対象外。
-		if (BoundMap->IsBorderTile(Coord.X, Coord.Y))
-		{
-			continue;
-		}
+		// if (BoundMap->IsBorderTile(Coord.X, Coord.Y))
+		// {
+		// 	continue;
+		// }
+		/** @brief 2026.10.22 廃止：外周の相手プレイヤー配置矢印も反転対象として扱う。
+		 *         マップ予約矢印は実履歴に存在しないため、従来どおり対象外になる。 */
+		// 2026.10.22 Lee end
 
 		const int32 TileIndex = Coord.Y * BoundMap->MapWidth + Coord.X;
 		if (!BoundMap->GridData.IsValidIndex(TileIndex))

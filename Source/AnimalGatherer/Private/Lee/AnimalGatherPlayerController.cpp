@@ -486,16 +486,20 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 		return;
 	}
 
+	// 2026.10.22 Lee start（ボーダー配置禁止の廃止：外周マスへの矢印配置を許可する。旧コードは下記の通り残す）
 	// ボーダータイルには配置不可
-	if (MapManagerRef->IsBorderTile(TargetCoords.X, TargetCoords.Y))
-	{
-		// 2026.10.14 Lee start
-		PlayActionRejectSound();
-		// 2026.10.14 Lee end
-		UE_LOG(LogTemp, Display, TEXT("PlaceDirection: ボーダータイル (%d, %d) には配置できません"),
-			TargetCoords.X, TargetCoords.Y);
-		return;
-	}
+	// if (MapManagerRef->IsBorderTile(TargetCoords.X, TargetCoords.Y))
+	// {
+	// 	// 2026.10.14 Lee start
+	// 	PlayActionRejectSound();
+	// 	// 2026.10.14 Lee end
+	// 	UE_LOG(LogTemp, Display, TEXT("PlaceDirection: ボーダータイル (%d, %d) には配置できません"),
+	// 		TargetCoords.X, TargetCoords.Y);
+	// 	return;
+	// }
+	/** @brief 2026.10.22 廃止：外周マスも通常マスと同じ配置ルールに従う。
+	 *         Spawn / GoalP1 / GoalP2 の上書き禁止・範囲外チェック・チュートリアル制限・FIFO は従来どおり有効。 */
+	// 2026.10.22 Lee end
 
 	// 2026.10.02 Lee start
 	// チュートリアル中は GameMode 側の配置制限に従う（通常ゲームでは Cast 失敗するため何もしない）
@@ -749,11 +753,15 @@ TArray<FIntPoint> AAnimalGatherPlayerController::GetOwnedPlacedArrowCoords(uint8
 			continue;
 		}
 
+		// 2026.10.22 Lee start（ボーダー除外の廃止：プレイヤーが外周へ配置した矢印も有効対象に含める。旧コードは残す）
 		// 外周ボーダーは対象外。
-		if (BoundMap->IsBorderTile(Coord.X, Coord.Y))
-		{
-			continue;
-		}
+		// if (BoundMap->IsBorderTile(Coord.X, Coord.Y))
+		// {
+		// 	continue;
+		// }
+		/** @brief 2026.10.22 廃止：外周のプレイヤー配置矢印も実履歴ベースの有効対象として扱う。
+		 *         マップ予約矢印は実履歴に存在しないため、従来どおり対象外になる。 */
+		// 2026.10.22 Lee end
 
 		const int32 TileIndex = Coord.Y * BoundMap->MapWidth + Coord.X;
 		if (!BoundMap->GridData.IsValidIndex(TileIndex))
