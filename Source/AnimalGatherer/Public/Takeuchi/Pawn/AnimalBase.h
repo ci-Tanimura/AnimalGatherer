@@ -47,6 +47,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Movement")
 	float FacingYawOffset = -90.0f;
 
+	// 2026.10.22 Tanimura start------------------------------------------------
+	//盤外へ出た動物を落下させるか
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall")
+	bool bFallOffBoard = true;
+
+	//落下時の重力加速度（cm/s^2）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float FallGravity = 980.0f;
+
+	//落下を始めてから破棄されるまでの深さ（cm）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float FallKillDepth = 2000.0f;
+	// 2026.10.22 Tanimura end--------------------------------------------------
+
 	//1タイルのワールドサイズ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Map", meta = (ClampMin = "1.0", UIMin = "1.0"))
 	float TileSize = 100.0f;
@@ -219,4 +233,27 @@ private:
 	void MoveAlongGrid(float DeltaTime);
 	// 2026.10.06 Lee end（区間数固定上限を廃止し進行保証へ移行）
 	// 2026.10.06 Lee end
+
+	// 2026.10.22 Tanimura start------------------------------------------------
+	//盤外へ出て落下中か
+	bool bFalling = false;
+
+	//落下中の下落速度（cm/s）
+	float FallSpeed = 0.0f;
+
+	//落下中の水平速度（盤外へ出た時点の移動速度を引き継ぐ）
+	FVector FallHorizontalVelocity = FVector::ZeroVector;
+
+	//落下を始めた高さ
+	float FallStartZ = 0.0f;
+
+	//現在位置が盤面の外かどうかを返す
+	bool IsOutsideBoard() const;
+
+	//盤外へ出た動物の落下を開始する
+	void StartFalling();
+
+	//重力に従って落下し、規定の深さで破棄する
+	void UpdateFall(float DeltaTime);
+	// 2026.10.22 Tanimura end--------------------------------------------------
 };
