@@ -59,6 +59,22 @@ public:
 	//落下を始めてから破棄されるまでの深さ（cm）
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float FallKillDepth = 2000.0f;
+
+	//海面の高さ（ワールド Z）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall")
+	float SeaLevelZ = 0.0f;
+
+	//海面へ落ちた時の水しぶき
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall")
+	TObjectPtr<class UNiagaraSystem> SplashVFX = nullptr;
+
+	//水しぶきの大きさ
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float SplashScale = 1.0f;
+
+	//海面へ落ちた時に水しぶきを出すか
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animal Fall")
+	bool bSplashOnWater = true;
 	// 2026.10.22 Tanimura end--------------------------------------------------
 
 	//1タイルのワールドサイズ
@@ -246,6 +262,12 @@ private:
 
 	//落下を始めた高さ
 	float FallStartZ = 0.0f;
+
+	//水しぶきを一度だけ出すためのフラグ
+	bool bSplashSpawned = false;
+
+	//海面を通過したか判定し、水しぶきを出す
+	void TrySpawnWaterSplash(const FVector& PreviousLocation, const FVector& CurrentLocation);
 
 	//現在位置が盤面の外かどうかを返す
 	bool IsOutsideBoard() const;

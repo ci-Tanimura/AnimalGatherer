@@ -1181,7 +1181,8 @@ void AAnimalBase::UpdateFall(float DeltaTime)
 	// 重力加速度を積算して落下速度を求める
 	FallSpeed += FallGravity * DeltaTime;
 
-	FVector Location = GetActorLocation();
+	const FVector PreviousLocation = GetActorLocation();
+	FVector Location = PreviousLocation;
 
 	// 水平方向は盤外へ出た瞬間の速度を維持する（慣性）
 	Location += FallHorizontalVelocity * DeltaTime;
@@ -1190,9 +1191,46 @@ void AAnimalBase::UpdateFall(float DeltaTime)
 	// 落下中は地面や壁に阻まれず落下させたいため sweep は行わない
 	SetActorLocation(Location, false);
 
+	// 海面を通過した場合は水しぶきを出す
+	TrySpawnWaterSplash(PreviousLocation, Location);
+
 	// 規定の深さまで落ちた動物は破棄する
 	if (FallStartZ - Location.Z >= FallKillDepth) {
 		Destroy();
+	}
+}
+
+//海面への落下を判定し、水しぶきを出す
+void AAnimalBase::TrySpawnWaterSplash(const FVector& PreviousLocation, const FVector& CurrentLocation)
+{
+	if (!bSplashOnWater || bSplashSpawned || SplashVFX == nullptr) {
+		return;
+	}
+
+	// 海面を上から下へ跨いだ場合のみ水しぶきを出す
+	if (!(PreviousLocation.Z >= SeaLevelZ && CurrentLocation.Z < SeaLevelZ)) {
+		return;
+	}
+
+	bSplashSpawned = true;
+
+	// 海面を通過した位置を補間して求める
+	const float FallDistance = PreviousLocation.Z - CurrentLocation.Z;
+	const float Alpha = FallDistance > KINDA_SMALL_NUMBER ? (PreviousLocation.Z - SeaLevelZ) / FallDistance : 1.0f;
+	FVector SplashLocation = FMath::Lerp(PreviousLocation, CurrentLocation, FMath::Clamp(Alpha, 0.0f, 1.0f));
+	SplashLocation.Z = SeaLevelZ;
+
+	// 使い捨てで生成し、再生後にプールへ返す
+	if (UWorld* World = GetWorld()) {
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			World,
+			SplashVFX,
+			SplashLocation,
+			FRotator::ZeroRotator,
+			FVector(SplashScale, SplashScale, SplashScale),
+			true,
+			true,
+			ENCPoolMethod::AutoRelease);
 	}
 }
 // 2026.10.22 Tanimura end--------------------------------------------------
