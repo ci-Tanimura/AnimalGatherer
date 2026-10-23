@@ -143,6 +143,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Map")
 	void UpdateMapVisuals();
 
+	// 2026.10.23 Lee start
+	/** @brief 空洞を除くセルの床だけを再構築する。座標・他アクター・取引は変更しない。 */
+	void RefreshBaseFloorVisuals();
+	// 2026.10.23 Lee end
+
 	/**
 	 * @brief 指定された1つのタイル状態レイヤーのみを再構築する。
 	 *        GridData を走査し、該当する全タイルを一括で再描画する。

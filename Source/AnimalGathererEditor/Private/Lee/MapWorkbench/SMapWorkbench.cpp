@@ -51,6 +51,9 @@ namespace MapWorkbenchStyle
 	{
 		switch (Type)
 		{
+		// 2026.10.23 Lee start
+		case ETileType::Hole:    return FLinearColor(0.025f, 0.03f, 0.04f);
+		// 2026.10.23 Lee end
 		case ETileType::DirUp:   return FLinearColor(0.25f, 0.77f, 1.00f);
 		case ETileType::DirDown: return FLinearColor(1.00f, 0.65f, 0.30f);
 		case ETileType::DirLeft: return FLinearColor(0.51f, 0.78f, 0.52f);
@@ -68,6 +71,9 @@ namespace MapWorkbenchStyle
 		switch (Type)
 		{
 		case ETileType::Empty:   return FMapWorkbenchText::Get(EWorkbenchText::TileEmpty);
+		// 2026.10.23 Lee start
+		case ETileType::Hole:    return FMapWorkbenchText::Get(EWorkbenchText::TileHole);
+		// 2026.10.23 Lee end
 		case ETileType::DirUp:   return FMapWorkbenchText::Get(EWorkbenchText::TileUp);
 		case ETileType::DirDown: return FMapWorkbenchText::Get(EWorkbenchText::TileDown);
 		case ETileType::DirLeft: return FMapWorkbenchText::Get(EWorkbenchText::TileLeft);
@@ -88,6 +94,9 @@ namespace MapWorkbenchStyle
 		switch (InBrush)
 		{
 		case EWorkbenchBrush::Empty:    return ETileType::Empty;
+		// 2026.10.23 Lee start
+		case EWorkbenchBrush::Hole:     return ETileType::Hole;
+		// 2026.10.23 Lee end
 		case EWorkbenchBrush::DirUp:    return ETileType::DirUp;
 		case EWorkbenchBrush::DirDown:  return ETileType::DirDown;
 		case EWorkbenchBrush::DirLeft:  return ETileType::DirLeft;
@@ -594,6 +603,22 @@ void SWorkbenchCanvas::DrawTiles(AMapManager* M, FSlateWindowElementList& OutDra
 		// マス塗り（境界をわずかに残す）
 		const FSlateRect Rect = TileScreenRect(CellX, CellY, TileSize, LocalSize);
 		DrawBoxAt(OutDrawElements, AllottedGeometry, LayerId, Rect, FLinearColor(Color.R, Color.G, Color.B, 0.85f));
+
+		// 2026.10.23 Lee start
+		/** @brief 穴は編集画面だけで交差線を表示し、通常の空地と区別する。 */
+		if (Type == ETileType::Hole)
+		{
+			TArray<FVector2D> Line;
+			Line.Add(FVector2D(Rect.Left, Rect.Top));
+			Line.Add(FVector2D(Rect.Right, Rect.Bottom));
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(),
+				Line, ESlateDrawEffect::None, FLinearColor(0.55f, 0.58f, 0.62f), true, 1.0f);
+			Line[0] = FVector2D(Rect.Left, Rect.Bottom);
+			Line[1] = FVector2D(Rect.Right, Rect.Top);
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(),
+				Line, ESlateDrawEffect::None, FLinearColor(0.55f, 0.58f, 0.62f), true, 1.0f);
+		}
+		// 2026.10.23 Lee end
 
 		// 方向タイルは「世界軸」基準で矢印を描く（画布X=世界+Xが画面右、画布Y=世界+Yが画面上）：
 		// DirUp=+Y → 上、DirDown=-Y → 下、DirLeft=+X → 画面右、DirRight=-X → 画面左
@@ -1183,6 +1208,9 @@ void SMapWorkbench::Construct(const FArguments& InArgs)
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::Select,  FMapWorkbenchText::Get(EWorkbenchText::BrushSelect)) ]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::Empty,   FMapWorkbenchText::Get(EWorkbenchText::BrushErase)) ]
+			// 2026.10.23 Lee start
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::Hole,    FMapWorkbenchText::Get(EWorkbenchText::BrushHole)) ]
+			// 2026.10.23 Lee end
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::DirUp,   FMapWorkbenchText::Get(EWorkbenchText::BrushUp)) ]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::DirDown, FMapWorkbenchText::Get(EWorkbenchText::BrushDown)) ]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)[ MakeBrushCheck(EWorkbenchBrush::DirLeft, FMapWorkbenchText::Get(EWorkbenchText::BrushLeft)) ]
@@ -1211,6 +1239,9 @@ void SMapWorkbench::Construct(const FArguments& InArgs)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth()[ MakeLegendEntry(ETileType::Empty,    FMapWorkbenchText::Get(EWorkbenchText::LegendItemEmpty)) ]
+			// 2026.10.23 Lee start
+			+ SHorizontalBox::Slot().AutoWidth()[ MakeLegendEntry(ETileType::Hole,     FMapWorkbenchText::Get(EWorkbenchText::LegendItemHole)) ]
+			// 2026.10.23 Lee end
 			+ SHorizontalBox::Slot().AutoWidth()[ MakeLegendEntry(ETileType::DirUp,    FMapWorkbenchText::Get(EWorkbenchText::LegendItemUp)) ]
 			+ SHorizontalBox::Slot().AutoWidth()[ MakeLegendEntry(ETileType::DirDown,  FMapWorkbenchText::Get(EWorkbenchText::LegendItemDown)) ]
 			+ SHorizontalBox::Slot().AutoWidth()[ MakeLegendEntry(ETileType::DirLeft,  FMapWorkbenchText::Get(EWorkbenchText::LegendItemLeft)) ]
@@ -1883,17 +1914,21 @@ bool SMapWorkbench::PaintCell(const FIntPoint& InCell, ETileType InType, FText& 
 		StrokeTransaction = MakeUnique<FScopedTransaction>(FMapWorkbenchText::Get(EWorkbenchText::TxPaint));
 	}
 	M->Modify();
-	const ETileType OldType = Tile.TileType;
-	Tile.TileType = InType;
-	Tile.OwnerPlayerId = NewOwner;
-	if (OldType != ETileType::Empty && OldType != InType)
-	{
-		M->RefreshStateVisual(OldType);
-	}
-	if (InType != ETileType::Empty)
-	{
-		M->RefreshStateVisual(InType);
-	}
+	// 2026.10.23 Lee start
+	// const ETileType OldType = Tile.TileType;
+	// Tile.TileType = InType;
+	// Tile.OwnerPlayerId = NewOwner;
+	// if (OldType != ETileType::Empty && OldType != InType)
+	// {
+	// 	M->RefreshStateVisual(OldType);
+	// }
+	// if (InType != ETileType::Empty)
+	// {
+	// 	M->RefreshStateVisual(InType);
+	// }
+	/** @brief 取引と編集制限は維持し、書き込みと床同期は共通処理へ委譲する。 */
+	M->SetTileData(InCell.X, InCell.Y, InType, NewOwner);
+	// 2026.10.23 Lee end
 	bStrokeChanged = true;
 	return true;
 }

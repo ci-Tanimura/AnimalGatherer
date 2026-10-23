@@ -175,6 +175,14 @@ void AMapManager::SetTileData(int32 GridX, int32 GridY, ETileType NewType, uint8
 		GridData[Index].OwnerPlayerId = NewOwner;
 		// 2026.09.25 Lee end
 
+		// 2026.10.23 Lee start
+		/** @brief 床の有無が変わる場合だけ基底層を更新し、通常の矢印編集では再生成しない。 */
+		if ((OldType == ETileType::Hole) != (NewType == ETileType::Hole))
+		{
+			RefreshBaseFloorVisuals();
+		}
+		// 2026.10.23 Lee end
+
 		// 変更のあったレイヤーのみ再構築（全レイヤー再構築によるちらつき防止）
 		// 2026.09.25 Lee start
 		// 所有権のみ変化した場合（OldType == NewType）は同一レイヤーのため1回だけ再構築する
@@ -222,11 +230,42 @@ bool AMapManager::ClearArrowIfOwned(int32 GridX, int32 GridY, uint8 OwnerPlayerI
 
 void AMapManager::UpdateMapVisuals()
 {
+	// 2026.10.23 Lee start
+	/** @brief エディタ・ランタイム共通の全体更新に床の同期を含める。 */
+	RefreshBaseFloorVisuals();
+	// 2026.10.23 Lee end
 	for (auto& Pair : StateVisuals)
 	{
 		RefreshStateVisual(Pair.Key);
 	}
 }
+
+// 2026.10.23 Lee start
+/** @brief グリッド順に床を再生成し、空洞では表示・影・衝突の実体を生成しない。 */
+void AMapManager::RefreshBaseFloorVisuals()
+{
+	if (!HISM_BaseFloor || MapWidth <= 0 || MapHeight <= 0 ||
+		!FMath::IsFinite(TileSize) || TileSize <= 0.f)
+	{
+		return;
+	}
+
+	HISM_BaseFloor->ClearInstances();
+	TArray<FTransform> Transforms;
+	Transforms.Reserve(GridData.Num());
+	for (int32 Index = 0; Index < GridData.Num(); ++Index)
+	{
+		if (GridData[Index].TileType != ETileType::Hole)
+		{
+			Transforms.Emplace(FVector((Index % MapWidth) * TileSize, (Index / MapWidth) * TileSize, 0.f));
+		}
+	}
+	if (!Transforms.IsEmpty())
+	{
+		HISM_BaseFloor->AddInstances(Transforms, /*bShouldReturnIndices=*/false, /*bWorldSpace=*/false);
+	}
+}
+// 2026.10.23 Lee end
 
 void AMapManager::RefreshStateVisual(ETileType StateType)
 {
@@ -477,10 +516,14 @@ void AMapManager::ApplyTileEdit()
 		{
 			// 2026.09.25 Lee start
 			// エディタで配置するタイルはすべて 1P（青）扱いとする
-			GridData[Index].OwnerPlayerId = 0;
+			// 2026.10.23 Lee start
+			// GridData[Index].OwnerPlayerId = 0;
 			// 2026.09.25 Lee end
-			GridData[Index].TileType = Edit_TileType;
-			UpdateMapVisuals();
+			// GridData[Index].TileType = Edit_TileType;
+			// UpdateMapVisuals();
+			/** @brief 明示編集も共通経路を使い、空洞と床を同期する。 */
+			SetTileData(Edit_X, Edit_Y, Edit_TileType, 0);
+			// 2026.10.23 Lee end
 		}
 	}
 	else
@@ -621,10 +664,13 @@ void AMapManager::ResetAndGenerateBlankMap()
 	GridData.Empty();
 	GridData.Reserve(MapWidth * MapHeight);
 
-	if (HISM_BaseFloor)
-	{
-		HISM_BaseFloor->ClearInstances();
-	}
+	// 2026.10.23 Lee start
+	/** @brief 床の生成は末尾の UpdateMapVisuals に集約する。 */
+	// if (HISM_BaseFloor)
+	// {
+	// 	HISM_BaseFloor->ClearInstances();
+	// }
+	// 2026.10.23 Lee end
 
 	FVector StartLocation = GetActorLocation();
 
@@ -637,12 +683,14 @@ void AMapManager::ResetAndGenerateBlankMap()
 			NewTile.TileType = ETileType::Empty;
 			GridData.Add(NewTile);
 
-			if (HISM_BaseFloor)
-			{
-				FTransform InstanceTransform;
-				InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.0f));
-				HISM_BaseFloor->AddInstance(InstanceTransform);
-			}
+			// 2026.10.23 Lee start
+			// if (HISM_BaseFloor)
+			// {
+			// 	FTransform InstanceTransform;
+			// 	InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.0f));
+			// 	HISM_BaseFloor->AddInstance(InstanceTransform);
+			// }
+			// 2026.10.23 Lee end
 		}
 	}
 
@@ -729,18 +777,21 @@ void AMapManager::RebuildFloorAndPositions(bool bSyncSpawnBindings)
 	//----------------------------------------------------------
 	// 2. 床 HISM（ベース層）を現在の TileSize で全量再構築
 	//----------------------------------------------------------
-	if (HISM_BaseFloor && GridData.Num() > 0)
-	{
-		HISM_BaseFloor->ClearInstances();
-		for (int32 i = 0; i < GridData.Num(); ++i)
-		{
-			const int32 X = i % MapWidth;
-			const int32 Y = i / MapWidth;
-			FTransform InstanceTransform;
-			InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.f));
-			HISM_BaseFloor->AddInstance(InstanceTransform);
-		}
-	}
+	// 2026.10.23 Lee start
+	/** @brief 次の全体更新が床も再構築するため、重複する旧生成処理は保持のみとする。 */
+	// if (HISM_BaseFloor && GridData.Num() > 0)
+	// {
+	// 	HISM_BaseFloor->ClearInstances();
+	// 	for (int32 i = 0; i < GridData.Num(); ++i)
+	// 	{
+	// 		const int32 X = i % MapWidth;
+	// 		const int32 Y = i / MapWidth;
+	// 		FTransform InstanceTransform;
+	// 		InstanceTransform.SetLocation(FVector(X * TileSize, Y * TileSize, 0.f));
+	// 		HISM_BaseFloor->AddInstance(InstanceTransform);
+	// 	}
+	// }
+	// 2026.10.23 Lee end
 
 	//----------------------------------------------------------
 	// 3. 状態レイヤー（矢印・Spawn・Goal等）を全量再構築

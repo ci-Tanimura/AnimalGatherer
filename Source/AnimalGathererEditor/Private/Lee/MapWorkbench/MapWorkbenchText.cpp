@@ -65,6 +65,11 @@ static const TCHAR* GetTextZh(EWorkbenchText Id)
 
 	case EWorkbenchText::BrushSelect:               return TEXT("选择坐标");
 	case EWorkbenchText::BrushErase:                return TEXT("清除");
+	// 2026.10.23 Lee start
+	case EWorkbenchText::BrushHole:                 return TEXT("空洞");
+	case EWorkbenchText::TileHole:                  return TEXT("空洞（无地板，禁止放置箭头）");
+	case EWorkbenchText::LegendItemHole:            return TEXT("空洞（无地板）");
+	// 2026.10.23 Lee end
 	case EWorkbenchText::BrushUp:                   return TEXT("上 (+Y)");
 	case EWorkbenchText::BrushDown:                 return TEXT("下 (−Y)");
 	case EWorkbenchText::BrushLeft:                 return TEXT("左 (+X)");
@@ -277,6 +282,11 @@ static const TCHAR* GetTextJa(EWorkbenchText Id)
 
 	case EWorkbenchText::BrushSelect:               return TEXT("座標選択");
 	case EWorkbenchText::BrushErase:                return TEXT("消去");
+	// 2026.10.23 Lee start
+	case EWorkbenchText::BrushHole:                 return TEXT("穴");
+	case EWorkbenchText::TileHole:                  return TEXT("穴（床なし・矢印配置不可）");
+	case EWorkbenchText::LegendItemHole:            return TEXT("穴（床なし）");
+	// 2026.10.23 Lee end
 	case EWorkbenchText::BrushUp:                   return TEXT("上 (+Y)");
 	case EWorkbenchText::BrushDown:                 return TEXT("下 (−Y)");
 	case EWorkbenchText::BrushLeft:                 return TEXT("左 (+X)");

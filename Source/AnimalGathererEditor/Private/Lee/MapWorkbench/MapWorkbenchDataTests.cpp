@@ -23,6 +23,12 @@
 #include "Lee/MapWorkbench/SMapWorkbench.h"
 #include "Framework/Application/SlateApplication.h"
 
+// 2026.10.23 Lee start
+#include "Engine/StaticMesh.h"
+#include "Lee/AnimalGatherPlayerController.h"
+#include "Lee/CursorPawn.h"
+// 2026.10.23 Lee end
+
 namespace
 {
 	/**
@@ -136,7 +142,19 @@ namespace
 			Test.AddError(FString::Printf(TEXT("[%s] HISM_BaseFloor が null です"), *What));
 			return;
 		}
-		if (!Test.TestEqual(What + TEXT(" / 床インスタンス数"), Map->HISM_BaseFloor->GetInstanceCount(), Map->MapWidth * Map->MapHeight))
+		// 2026.10.23 Lee start
+		// if (!Test.TestEqual(What + TEXT(" / 床インスタンス数"), Map->HISM_BaseFloor->GetInstanceCount(), Map->MapWidth * Map->MapHeight))
+		/** @brief 空洞を除外したグリッド順を期待値とし、インスタンス番号とセル番号を分離する。 */
+		TArray<int32> FloorCells;
+		for (int32 Cell = 0; Cell < Map->GridData.Num(); ++Cell)
+		{
+			if (Map->GridData[Cell].TileType != ETileType::Hole)
+			{
+				FloorCells.Add(Cell);
+			}
+		}
+		if (!Test.TestEqual(What + TEXT(" / 床インスタンス数"), Map->HISM_BaseFloor->GetInstanceCount(), FloorCells.Num()))
+		// 2026.10.23 Lee end
 		{
 			return;
 		}
@@ -144,8 +162,12 @@ namespace
 		{
 			FTransform InstanceTransform;
 			Map->HISM_BaseFloor->GetInstanceTransform(i, InstanceTransform, /*bWorldSpace=*/false);
-			const int32 X = i % Map->MapWidth;
-			const int32 Y = i / Map->MapWidth;
+			// 2026.10.23 Lee start
+			// const int32 X = i % Map->MapWidth;
+			// const int32 Y = i / Map->MapWidth;
+			const int32 X = FloorCells[i] % Map->MapWidth;
+			const int32 Y = FloorCells[i] / Map->MapWidth;
+			// 2026.10.23 Lee end
 			const FVector Expected(X * Map->TileSize, Y * Map->TileSize, 0.f);
 			if (!InstanceTransform.GetLocation().Equals(Expected, 0.01f))
 			{
@@ -811,6 +833,205 @@ bool FMapWorkbenchPanelConstructionReadOnly::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+// 2026.10.23 Lee start
+/** @brief 空洞への切替・復元・全空洞・構築経路を実際の床インスタンスで検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchHoleFloor,
+	"AnimalGatherer.MapWorkbench.HoleFloor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchHoleFloor::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	AMapManager* Map = SpawnTransactionalActor<AMapManager>(ScopedWorld->GetWorld());
+	if (!TestNotNull(TEXT("MapManager"), Map))
+	{
+		return false;
+	}
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapWidth), 3);
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapHeight), 2);
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Initial floor"));
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!TestNotNull(TEXT("Engine test mesh"), Cube))
+	{
+		return false;
+	}
+	Map->HISM_BaseFloor->SetStaticMesh(Cube);
+	Map->P2DirectionVisuals[ETileType::DirUp]->SetStaticMesh(Cube);
+	const FVector BeforeLocation = Map->GridData[1].WorldLocation;
+	Map->SetTileData(1, 0, ETileType::DirUp, 1);
+	TestEqual(TEXT("P2 arrow instance exists before conversion"), Map->P2DirectionVisuals[ETileType::DirUp]->GetInstanceCount(), 1);
+	Map->SetTileData(1, 0, ETileType::Hole, 1);
+	TestEqual(TEXT("Hole enum appended"), static_cast<uint8>(ETileType::Hole), uint8(8));
+	TestTrue(TEXT("Hole remains valid coordinate"), Map->IsValidCoord_Implementation(FIntPoint(1, 0)));
+	TestEqual(TEXT("Hole is readable"), static_cast<uint8>(Map->GetCellState_Implementation(FIntPoint(1, 0))), uint8(8));
+	TestTrue(TEXT("World location retained"), Map->GridData[1].WorldLocation.Equals(BeforeLocation));
+	TestEqual(TEXT("Non-direction owner normalized"), Map->GridData[1].OwnerPlayerId, uint8(0));
+	TestEqual(TEXT("Grid data retained"), Map->GridData.Num(), 6);
+	TestFalse(TEXT("Hole has no state component"), Map->StateVisuals.Contains(ETileType::Hole));
+	TestEqual(TEXT("Old P2 arrow removed"), Map->P2DirectionVisuals[ETileType::DirUp]->GetInstanceCount(), 0);
+	TestFalse(TEXT("FIFO clearing cannot fill hole"), Map->ClearArrowIfOwned(1, 0, 0));
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("One hole"));
+	Map->SetTileData(1, 0, ETileType::Empty);
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Erased hole"));
+
+	/** @brief Details の明示編集も床を同期する。 */
+	Map->Edit_X = 1;
+	Map->Edit_Y = 0;
+	Map->Edit_TileType = ETileType::Hole;
+	Map->ApplyTileEdit();
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Details hole"));
+	Map->Edit_TileType = ETileType::Empty;
+	Map->ApplyTileEdit();
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Details restored floor"));
+
+	/** @brief 構築経路は直接変更されたデータからも床を再構築する。 */
+	Map->GridData[1].TileType = ETileType::Hole;
+	Map->OnConstruction(Map->GetActorTransform());
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Editor construction"));
+	UWorld* World = ScopedWorld->GetWorld();
+	const EWorldType::Type PreviousWorldType = World->WorldType;
+	World->WorldType = EWorldType::Game;
+	Map->GridData[2].TileType = ETileType::Hole;
+	Map->OnConstruction(Map->GetActorTransform());
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Runtime construction"));
+	World->WorldType = PreviousWorldType;
+
+	for (int32 Y = 0; Y < Map->MapHeight; ++Y)
+	{
+		for (int32 X = 0; X < Map->MapWidth; ++X)
+		{
+			Map->SetTileData(X, Y, ETileType::Hole);
+		}
+	}
+	Map->UpdateMapVisuals();
+	TestEqual(TEXT("All holes have zero floor instances"), Map->HISM_BaseFloor->GetInstanceCount(), 0);
+	Map->SetTileData(2, 1, ETileType::DirRight);
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Arrow restores one floor"));
+	Map->GridData.Empty();
+	Map->UpdateMapVisuals();
+	TestEqual(TEXT("Empty data clears stale floor"), Map->HISM_BaseFloor->GetInstanceCount(), 0);
+	return true;
+}
+
+/** @brief 一筆相当の取引・縮図退避復元・保存往復で空洞のデータと床が一致することを検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchHolePersistence,
+	"AnimalGatherer.MapWorkbench.HolePersistence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchHolePersistence::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	AMapManager* Map = SpawnTransactionalActor<AMapManager>(ScopedWorld->GetWorld());
+	if (!TestNotNull(TEXT("MapManager"), Map))
+	{
+		return false;
+	}
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapWidth), 4);
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapHeight), 3);
+	{
+		FScopedTransaction Transaction(NSLOCTEXT("MapWorkbenchTests", "HoleStroke", "Hole stroke"));
+		Map->Modify();
+		Map->SetTileData(0, 0, ETileType::Hole);
+		Map->SetTileData(1, 0, ETileType::Hole);
+		Map->SetTileData(3, 2, ETileType::Hole);
+	}
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Stroke"));
+	TestTrue(TEXT("Undo stroke"), GEditor->UndoTransaction());
+	TestEqual(TEXT("Undo restores all three cells"), Map->HISM_BaseFloor->GetInstanceCount(), 12);
+	TestTrue(TEXT("Redo stroke"), GEditor->RedoTransaction());
+	TestEqual(TEXT("Redo removes all three floors"), Map->HISM_BaseFloor->GetInstanceCount(), 9);
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Redo"));
+	TestTrue(TEXT("Shrink map"), Map->ResizeGridPreservingLayout(2, 2, true));
+	TestTrue(TEXT("Hole is archived"), Map->OutOfBoundsTiles.ContainsByPredicate([](const FOutOfBoundsTileRecord& Record)
+	{
+		return Record.GridCoords == FIntPoint(3, 2) && Record.TileData.TileType == ETileType::Hole;
+	}));
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Shrunk"));
+	TArray<uint8> Bytes;
+	{
+		FObjectWriter Writer(Map, Bytes);
+	}
+	Map->SetTileData(0, 0, ETileType::Empty);
+	Map->OutOfBoundsTiles.Empty();
+	{
+		FObjectReader Reader(Map, Bytes);
+	}
+	Map->RebuildFloorAndPositions(false);
+	TestEqual(TEXT("Serialized hole restored"), TypeAt(Map, 0, 0), uint8(ETileType::Hole));
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Serialization"));
+	TestTrue(TEXT("Expand map"), Map->ResizeGridPreservingLayout(4, 3, true));
+	TestEqual(TEXT("Archived hole restored"), TypeAt(Map, 3, 2), uint8(ETileType::Hole));
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, TileSize), 175.f);
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Resized tiles"));
+
+	/** @brief 関連付き出生マスの保護を共通書き込みへの委譲後も保持する。 */
+	AAnimalSpawner* Spawner = SpawnTransactionalActor<AAnimalSpawner>(ScopedWorld->GetWorld());
+	if (!TestNotNull(TEXT("Spawner"), Spawner))
+	{
+		return false;
+	}
+	Map->SetTileData(2, 1, ETileType::Spawn);
+	TestTrue(TEXT("Bind spawn"), Map->BindSpawnTile(Spawner, FIntPoint(2, 1), 0.f));
+	Map->Edit_X = 2;
+	Map->Edit_Y = 1;
+	Map->Edit_TileType = ETileType::Hole;
+	Map->ApplyTileEdit();
+	TestEqual(TEXT("Bound spawn cannot become a hole"), TypeAt(Map, 2, 1), uint8(ETileType::Spawn));
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Protected spawn"));
+	return true;
+}
+
+/** @brief 実際の配置APIを通し、穴への拒否が既存矢印とFIFO順序を変えないことを検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchHolePlacement,
+	"AnimalGatherer.MapWorkbench.HolePlacement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchHolePlacement::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	UWorld* World = ScopedWorld->GetWorld();
+	AMapManager* Map = SpawnTransactionalActor<AMapManager>(World);
+	AAnimalGatherPlayerController* Controller = SpawnTransactionalActor<AAnimalGatherPlayerController>(World);
+	ACursorPawn* Cursor = SpawnTransactionalActor<ACursorPawn>(World);
+	if (!TestNotNull(TEXT("Map"), Map) || !TestNotNull(TEXT("Controller"), Controller) || !TestNotNull(TEXT("Cursor"), Cursor))
+	{
+		return false;
+	}
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapWidth), 5);
+	SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapHeight), 2);
+	Controller->SetMapManager(Map);
+	Controller->Possess(Cursor);
+	if (!TestTrue(TEXT("Controller possesses cursor"), Controller->GetPawn() == Cursor))
+	{
+		return false;
+	}
+	Cursor->PlayerID = 0;
+	Cursor->GridY = 0;
+	for (int32 X = 0; X < 3; ++X)
+	{
+		Cursor->GridX = X;
+		Controller->PlaceDirection(ETileType::DirUp);
+		TestEqual(TEXT("Initial arrow placed"), TypeAt(Map, X, 0), uint8(ETileType::DirUp));
+	}
+	Map->SetTileData(3, 0, ETileType::Hole);
+	Cursor->GridX = 3;
+	Controller->PlaceDirection(ETileType::DirLeft);
+	TestEqual(TEXT("Hole cannot be filled by player"), TypeAt(Map, 3, 0), uint8(ETileType::Hole));
+	for (int32 X = 0; X < 3; ++X)
+	{
+		TestEqual(TEXT("Rejection retains previous arrows"), TypeAt(Map, X, 0), uint8(ETileType::DirUp));
+	}
+	Cursor->GridX = 4;
+	Controller->PlaceDirection(ETileType::DirDown);
+	TestEqual(TEXT("Next placement evicts original oldest arrow"), TypeAt(Map, 0, 0), uint8(ETileType::Empty));
+	TestEqual(TEXT("Second arrow retained"), TypeAt(Map, 1, 0), uint8(ETileType::DirUp));
+	TestEqual(TEXT("Third arrow retained"), TypeAt(Map, 2, 0), uint8(ETileType::DirUp));
+	TestEqual(TEXT("Fourth valid arrow placed"), TypeAt(Map, 4, 0), uint8(ETileType::DirDown));
+	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Player cannot restore hole floor"));
+	return true;
+}
+// 2026.10.23 Lee end
 
 #endif // WITH_DEV_AUTOMATION_TESTS
 // 2026.10.22 Lee end（マップ工作台データ層のエディタ自動テスト）

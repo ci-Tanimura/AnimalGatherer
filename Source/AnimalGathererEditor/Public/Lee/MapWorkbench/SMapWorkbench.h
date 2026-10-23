@@ -36,7 +36,12 @@ enum class EWorkbenchBrush : uint8
 	DirRight = 5,
 	Spawn = 6,
 	GoalP1 = 7,
-	GoalP2 = 8
+	// 2026.10.23 Lee start
+	// GoalP2 = 8
+	GoalP2 = 8,
+	/** @brief 床を除去する固定地形のペン。 */
+	Hole = 9
+	// 2026.10.23 Lee end
 };
 
 /**

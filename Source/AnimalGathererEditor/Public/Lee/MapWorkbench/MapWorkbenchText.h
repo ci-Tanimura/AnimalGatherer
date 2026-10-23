@@ -46,6 +46,10 @@ enum class EWorkbenchText : uint8
 	BrushSpawn,
 	BrushGoalP1,
 	BrushGoalP2,
+	// 2026.10.23 Lee start
+	/** @brief 空洞ペンの表示名。 */
+	BrushHole,
+	// 2026.10.23 Lee end
 
 	//==========================================================================
 	// タイル表示名
@@ -58,6 +62,10 @@ enum class EWorkbenchText : uint8
 	TileSpawn,
 	TileGoalP1,
 	TileGoalP2,
+	// 2026.10.23 Lee start
+	/** @brief 床のないマスの説明。 */
+	TileHole,
+	// 2026.10.23 Lee end
 	TileUnknown,
 
 	//==========================================================================
@@ -74,6 +82,10 @@ enum class EWorkbenchText : uint8
 	LegendItemSpawn,
 	LegendItemGoalP1,
 	LegendItemGoalP2,
+	// 2026.10.23 Lee start
+	/** @brief 空洞の図例。 */
+	LegendItemHole,
+	// 2026.10.23 Lee end
 
 	//==========================================================================
 	// キャンバス

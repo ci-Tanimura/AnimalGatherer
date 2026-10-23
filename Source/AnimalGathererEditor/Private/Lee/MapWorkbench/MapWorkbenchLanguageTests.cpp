@@ -80,6 +80,15 @@ bool FMapWorkbenchLanguageTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("IsJapaneseUI(%s)"), Case.Culture),
 			FMapWorkbenchText::IsJapaneseUI(), Case.bExpectJapanese);
 
+		// 2026.10.23 Lee start
+		/** @brief 新規空洞ラベルが全対応言語で欠落しないことを検証する。 */
+		for (const EWorkbenchText Id : { EWorkbenchText::BrushHole, EWorkbenchText::TileHole, EWorkbenchText::LegendItemHole })
+		{
+			const FString Label = FMapWorkbenchText::Get(Id).ToString();
+			TestTrue(TEXT("Hole label follows UI language"), Label.Contains(Case.bExpectJapanese ? TEXT("穴") : TEXT("空洞")));
+		}
+		// 2026.10.23 Lee end
+
 		// 日本語時はカタカナ固有の「マップ工作台」、それ以外は中国語「地图工作台」（フォールバック）
 		const FString MenuTitle = FMapWorkbenchText::Get(EWorkbenchText::MenuTitle).ToString();
 		if (Case.bExpectJapanese)

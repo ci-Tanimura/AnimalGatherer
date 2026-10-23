@@ -19,7 +19,12 @@ enum class ETileType : uint8
 	DirRight = 4   UMETA(DisplayName = "右方向"),
 	Spawn = 5      UMETA(DisplayName = "動物出現ポイント"),
 	GoalP1 = 6     UMETA(DisplayName = "1P ゴール"),
-	GoalP2 = 7     UMETA(DisplayName = "2P ゴール")
+	// 2026.10.23 Lee start
+	// GoalP2 = 7     UMETA(DisplayName = "2P ゴール")
+	GoalP2 = 7     UMETA(DisplayName = "2P ゴール"),
+	/** @brief 床を生成しない固定の穴。既存の列挙値は変更しない。 */
+	Hole = 8       UMETA(DisplayName = "穴（床なし）")
+	// 2026.10.23 Lee end
 };
 
 /**
