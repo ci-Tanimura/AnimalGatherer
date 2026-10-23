@@ -27,6 +27,13 @@
 #include "Engine/StaticMesh.h"
 #include "Lee/AnimalGatherPlayerController.h"
 #include "Lee/CursorPawn.h"
+// 2026.10.23 Lee start
+#include "Takeuchi/Pawn/AnimalBase.h"
+#include "Tanimura/MainGameMode.h"
+#include "Components/BoxComponent.h"
+#include "Misc/ScopeExit.h"
+#include "UObject/Script.h"
+// 2026.10.23 Lee end
 // 2026.10.23 Lee end
 
 namespace
@@ -1029,6 +1036,295 @@ bool FMapWorkbenchHolePlacement::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Third arrow retained"), TypeAt(Map, 2, 0), uint8(ETileType::DirUp));
 	TestEqual(TEXT("Fourth valid arrow placed"), TypeAt(Map, 4, 0), uint8(ETileType::DirDown));
 	VerifyBaseFloorInstanceGrid(*this, Map, TEXT("Player cannot restore hole floor"));
+	return true;
+}
+// 2026.10.23 Lee end
+
+// 2026.10.23 Lee start
+namespace
+{
+	/** @brief 平行移動済みの一時マップを生成し、座標原点への依存も検証する。 */
+	AMapManager* MakeAnimalHoleMap(UWorld* World)
+	{
+		AMapManager* Map = SpawnTransactionalActor<AMapManager>(World);
+		if (Map)
+		{
+			SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapWidth), 6);
+			SetPropertyViaDetails(Map, GET_MEMBER_NAME_CHECKED(AMapManager, MapHeight), 5);
+			Map->SetActorLocation(FVector(1000.0, 2000.0, 300.0));
+			Map->RebuildFloorAndPositions(false);
+			Map->SetTileData(2, 2, ETileType::Hole);
+		}
+		return Map;
+	}
+
+	/** @brief 実際のTickから検証する動物。音・描画の結果は無描画テストの対象外とする。 */
+	AAnimalBase* MakeHoleAnimal(AMapManager* Map, const FVector& RelativePosition, const FVector& Direction)
+	{
+		AAnimalBase* Animal = SpawnTransactionalActor<AAnimalBase>(Map->GetWorld());
+		if (Animal)
+		{
+			Animal->SetMapActor(Map);
+			Animal->SetActorLocation(Map->GetActorLocation() + RelativePosition);
+			Animal->SetMoveDirection(Direction);
+			Animal->MoveSpeed = 1000.0f;
+			Animal->FallGravity = 1000.0f;
+			Animal->bFallOffBoard = false;
+			Animal->bSplashOnWater = false;
+			Animal->GoalNiagaraVFX = nullptr;
+			Animal->GoalSound = nullptr;
+		}
+		return Animal;
+	}
+}
+
+/** @brief 四方向の入口で停止し、次Tickで慣性付き落下へ入ることを検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchAnimalHoleEntry,
+	"AnimalGatherer.MapWorkbench.AnimalHoleEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchAnimalHoleEntry::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	/** @brief エディタ世界でも実際のBlueprintNativeEventインターフェースを実行し、終了時に許可状態を復元する。 */
+	FEditorScriptExecutionGuard ScriptGuard;
+	AMapManager* Map = MakeAnimalHoleMap(ScopedWorld->GetWorld());
+	if (!TestNotNull(TEXT("Map"), Map)) { return false; }
+	struct FEntryCase { FVector Start; FVector Direction; FVector Entry; };
+	const FEntryCase Cases[] =
+	{
+		{ FVector(100, 200, 100), FVector(1, 0, 0), FVector(150, 200, 100) },
+		{ FVector(300, 200, 100), FVector(-1, 0, 0), FVector(250, 200, 100) },
+		{ FVector(200, 100, 100), FVector(0, 1, 0), FVector(200, 150, 100) },
+		{ FVector(200, 300, 100), FVector(0, -1, 0), FVector(200, 250, 100) }
+	};
+	for (const FEntryCase& Case : Cases)
+	{
+		AAnimalBase* Animal = MakeHoleAnimal(Map, Case.Start, Case.Direction);
+		if (!TestNotNull(TEXT("Animal"), Animal)) { return false; }
+		Animal->Tick(1.0f);
+		const FVector Entry = Map->GetActorLocation() + Case.Entry;
+		TestTrue(FString::Printf(TEXT("Large frame entry: actual=%s expected=%s speed=%f map=%s"),
+			*Animal->GetActorLocation().ToString(), *Entry.ToString(), Animal->GetEffectiveMoveSpeed(), *GetNameSafe(ScopedWorld->GetWorld()->GetAuthGameMode())),
+			Animal->GetActorLocation().Equals(Entry, 0.001));
+		FIntPoint LastRead;
+		TestTrue(TEXT("Previous center was read"), Animal->GetLastReadGridCoords(LastRead));
+		TestTrue(TEXT("Hole center was not processed"), LastRead != FIntPoint(2, 2));
+		Animal->Tick(0.1f);
+		const FVector Fallen = Animal->GetActorLocation();
+		TestTrue(TEXT("Gravity progresses after entry"), Fallen.Z < Entry.Z);
+		TestTrue(TEXT("Existing horizontal inertia retained"),
+			FVector::Dist2D(Fallen, Entry + Case.Direction * 100.0) < 0.001);
+	}
+	/** @brief 同じ距離を小さなフレームに分けても同じ入口で止まる。 */
+	AAnimalBase* SmallFrames = MakeHoleAnimal(Map, FVector(100, 200, 100), FVector(1, 0, 0));
+	if (!TestNotNull(TEXT("Small frame animal"), SmallFrames)) { return false; }
+	SmallFrames->MoveSpeed = 2000.0f;
+	SmallFrames->Tick(0.02f);
+	SmallFrames->Tick(0.02f);
+	TestTrue(TEXT("Higher speed and split frames use same boundary"),
+		SmallFrames->GetActorLocation().Equals(Map->GetActorLocation() + FVector(150, 200, 100), 0.001));
+	return true;
+}
+
+/** @brief 初期位置・整列・非軸方向・接線と角の接触を検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchAnimalHolePaths,
+	"AnimalGatherer.MapWorkbench.AnimalHolePaths",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchAnimalHolePaths::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	FEditorScriptExecutionGuard ScriptGuard;
+	AMapManager* Map = MakeAnimalHoleMap(ScopedWorld->GetWorld());
+	if (!TestNotNull(TEXT("Map"), Map)) { return false; }
+	struct FPathCase { FVector Start; FVector Direction; FVector Entry; };
+	const FPathCase Paths[] =
+	{
+		{ FVector(0, 225, 100), FVector(1, 0, 0), FVector(150, 225, 100) },
+		{ FVector(0, 0, 100), FVector(1, 1, 0), FVector(150, 150, 100) },
+		{ FVector(400, 400, 100), FVector(-1, -1, 0), FVector(250, 250, 100) },
+		{ FVector(150, 200, 100), FVector(1, 0, 0), FVector(150, 200, 100) },
+		{ FVector(150, 151, 100), FVector(-1, 0, 0), FVector(150, 151, 100) }
+	};
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Paths); ++Index)
+	{
+		const FPathCase& Path = Paths[Index];
+		AAnimalBase* Animal = MakeHoleAnimal(Map, Path.Start, Path.Direction);
+		if (!TestNotNull(TEXT("Path animal"), Animal)) { return false; }
+		if (Index == UE_ARRAY_COUNT(Paths) - 1)
+		{
+			/** @brief 大きい初期整列許容でも、整列線分上の穴を飛び越さない。 */
+			Animal->DirectionReadTolerance = 100.0f;
+		}
+		Animal->Tick(1.0f);
+		TestTrue(TEXT("Path stops at hole entry"), Animal->GetActorLocation().Equals(Map->GetActorLocation() + Path.Entry, 0.001));
+		const double StartZ = Animal->GetActorLocation().Z;
+		Animal->Tick(0.1f);
+		TestTrue(TEXT("Path starts falling"), Animal->GetActorLocation().Z < StartZ);
+	}
+	Map->SetTileData(1, 2, ETileType::Empty);
+	Map->SetTileData(2, 2, ETileType::Empty);
+	Map->SetTileData(1, 0, ETileType::Hole);
+	AAnimalBase* Corner = MakeHoleAnimal(Map, FVector(0, 0, 100), FVector(1, 1, 0));
+	if (!TestNotNull(TEXT("Corner animal"), Corner)) { return false; }
+	Corner->Tick(0.4f);
+	TestTrue(TEXT("Touching a hole corner does not truncate movement"),
+		Corner->GetActorLocation().Equals(Map->GetActorLocation() + FVector(400.0 / FMath::Sqrt(2.0), 400.0 / FMath::Sqrt(2.0), 100), 0.001));
+	Corner->Tick(0.01f);
+	TestEqual(TEXT("Corner touch does not start falling"), Corner->GetActorLocation().Z, Map->GetActorLocation().Z + 100.0);
+	Map->SetTileData(1, 0, ETileType::Empty);
+	Map->SetTileData(2, 2, ETileType::Hole);
+	AAnimalBase* Tangent = MakeHoleAnimal(Map, FVector(0, 150, 100), FVector(1, 0, 0));
+	AAnimalBase* Away = MakeHoleAnimal(Map, FVector(150, 200, 100), FVector(-1, 0, 0));
+	if (!TestNotNull(TEXT("Tangent animal"), Tangent) || !TestNotNull(TEXT("Moving away animal"), Away)) { return false; }
+	Tangent->Tick(0.4f);
+	Tangent->Tick(0.01f);
+	TestEqual(TEXT("Movement along boundary is not inside hole"), Tangent->GetActorLocation().Z, Map->GetActorLocation().Z + 100.0);
+	Away->Tick(0.1f);
+	Away->Tick(0.01f);
+	TestEqual(TEXT("Leaving boundary toward solid cell is safe"), Away->GetActorLocation().Z, Map->GetActorLocation().Z + 100.0);
+	return true;
+}
+
+/** @brief 実衝突が穴入口より手前の場合、落下も透過移動も起こらないことを検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchAnimalHoleBlocked,
+	"AnimalGatherer.MapWorkbench.AnimalHoleBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchAnimalHoleBlocked::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	FEditorScriptExecutionGuard ScriptGuard;
+	UWorld* World = ScopedWorld->GetWorld();
+	AMapManager* Map = MakeAnimalHoleMap(World);
+	if (!TestNotNull(TEXT("Map"), Map)) { return false; }
+	AAnimalBase* Animal = MakeHoleAnimal(Map, FVector(100, 200, 100), FVector(1, 0, 0));
+	AActor* Wall = SpawnTransactionalActor<AActor>(World);
+	if (!TestNotNull(TEXT("Animal"), Animal) || !TestNotNull(TEXT("Wall"), Wall)) { return false; }
+	UBoxComponent* AnimalBox = NewObject<UBoxComponent>(Animal);
+	AnimalBox->SetBoxExtent(FVector(5.0));
+	AnimalBox->SetCollisionProfileName(TEXT("BlockAll"));
+	Animal->SetRootComponent(AnimalBox);
+	AnimalBox->RegisterComponent();
+	Animal->SetActorLocation(Map->GetActorLocation() + FVector(100, 200, 100));
+	UBoxComponent* WallBox = NewObject<UBoxComponent>(Wall);
+	WallBox->SetBoxExtent(FVector(5.0, 20.0, 20.0));
+	WallBox->SetCollisionProfileName(TEXT("BlockAll"));
+	Wall->SetRootComponent(WallBox);
+	WallBox->RegisterComponent();
+	Wall->SetActorLocation(Map->GetActorLocation() + FVector(135, 200, 100));
+	Animal->Tick(0.5f);
+	const FVector Blocked = Animal->GetActorLocation();
+	TestTrue(TEXT("Actual sweep blocked before entry"), Blocked.X > Map->GetActorLocation().X + 100.0 && Blocked.X < Map->GetActorLocation().X + 150.0);
+	Animal->Tick(0.1f);
+	TestEqual(TEXT("Blocked animal does not fall"), Animal->GetActorLocation().Z, Blocked.Z);
+	TestTrue(TEXT("Blocked animal is not teleported into hole"), Animal->GetActorLocation().X < Map->GetActorLocation().X + 150.0);
+	return true;
+}
+
+/** @brief 穴の後ろのGoalを読まず、既存の破棄とスポナー枠回収へ接続することを検証する。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchAnimalHoleLifecycle,
+	"AnimalGatherer.MapWorkbench.AnimalHoleLifecycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchAnimalHoleLifecycle::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	FEditorScriptExecutionGuard ScriptGuard;
+	UWorld* World = ScopedWorld->GetWorld();
+	AMapManager* Map = MakeAnimalHoleMap(World);
+	if (!TestNotNull(TEXT("Map"), Map)) { return false; }
+	AMainGameMode* Mode = SpawnTransactionalActor<AMainGameMode>(World);
+	FObjectPropertyBase* Authority = FindFProperty<FObjectPropertyBase>(UWorld::StaticClass(), TEXT("AuthorityGameMode"));
+	FBoolProperty* NormalFlow = FindFProperty<FBoolProperty>(AMainGameMode::StaticClass(), TEXT("bUseNormalMatchFlow"));
+	if (!TestNotNull(TEXT("Game mode"), Mode) || !TestNotNull(TEXT("Authority property"), Authority) || !TestNotNull(TEXT("Flow property"), NormalFlow)) { return false; }
+	/** @brief 独立テストの非通常試合に接続し、実際の得点値も確認する。 */
+	NormalFlow->SetPropertyValue_InContainer(Mode, false);
+	UObject* PreviousAuthority = Authority->GetObjectPropertyValue_InContainer(World);
+	ON_SCOPE_EXIT { Authority->SetObjectPropertyValue_InContainer(World, PreviousAuthority); };
+	Authority->SetObjectPropertyValue_InContainer(World, Mode);
+	Map->SetTileData(3, 2, ETileType::GoalP1);
+	AAnimalBase* Animal = MakeHoleAnimal(Map, FVector(100, 200, 100), FVector(1, 0, 0));
+	if (!TestNotNull(TEXT("Animal"), Animal)) { return false; }
+	Animal->Tick(1.0f);
+	TestFalse(TEXT("Goal beyond hole does not destroy animal as scored"), Animal->IsActorBeingDestroyed());
+	FIntPoint LastRead;
+	Animal->GetLastReadGridCoords(LastRead);
+	TestTrue(TEXT("Goal center was not processed"), LastRead != FIntPoint(3, 2));
+	Animal->Tick(0.1f);
+	Animal->GetLastReadGridCoords(LastRead);
+	TestTrue(TEXT("Falling never reads the next center"), LastRead != FIntPoint(3, 2));
+	TestEqual(TEXT("No P1 score through hole"), Mode->GetP1Score(), 0);
+	TestEqual(TEXT("No P2 score through hole"), Mode->GetP2Score(), 0);
+
+	AAnimalSpawner* Spawner = SpawnTransactionalActor<AAnimalSpawner>(World);
+	if (!TestNotNull(TEXT("Spawner"), Spawner)) { return false; }
+	Spawner->AnimalClass = AAnimalBase::StaticClass();
+	Spawner->MapActor = Map;
+	Spawner->SpawnLocation = Map->GetActorLocation() + FVector(200, 200, 100);
+	Spawner->MaxAnimalCount = 1;
+	AAnimalBase* Spawned = Cast<AAnimalBase>(Spawner->SpawnAnimal());
+	if (!TestNotNull(TEXT("Spawned animal"), Spawned)) { return false; }
+	Spawned->bSplashOnWater = false;
+	Spawned->FallKillDepth = 10.0f;
+	Spawned->Tick(0.1f);
+	TestEqual(TEXT("Falling animal still occupies a slot"), Spawner->GetSpawnedAnimalCount(), 1);
+	TestNull(TEXT("Cannot spawn while slot occupied"), Spawner->SpawnAnimal());
+	Spawned->Tick(1.0f);
+	TestTrue(TEXT("Existing kill depth destroys animal"), Spawned->IsActorBeingDestroyed() || !IsValid(Spawned));
+	TestEqual(TEXT("Destroyed animal releases slot"), Spawner->GetSpawnedAnimalCount(), 0);
+	TestNotNull(TEXT("Spawner can create replacement"), Spawner->SpawnAnimal());
+
+	/** @brief 穴でない床と従来の外周設定を回帰検証する。 */
+	AAnimalBase* Solid = MakeHoleAnimal(Map, FVector(0, 0, 100), FVector(1, 0, 0));
+	AAnimalBase* Edge = MakeHoleAnimal(Map, FVector(-100, 100, 100), FVector(-1, 0, 0));
+	AAnimalBase* EdgeDisabled = MakeHoleAnimal(Map, FVector(-100, 100, 100), FVector(-1, 0, 0));
+	if (!TestNotNull(TEXT("Solid"), Solid) || !TestNotNull(TEXT("Edge"), Edge) || !TestNotNull(TEXT("EdgeDisabled"), EdgeDisabled)) { return false; }
+	Edge->bFallOffBoard = true;
+	Solid->Tick(0.1f);
+	Solid->Tick(0.1f);
+	Edge->Tick(0.1f);
+	Edge->Tick(0.1f);
+	EdgeDisabled->Tick(0.1f);
+	EdgeDisabled->Tick(0.1f);
+	TestEqual(TEXT("Solid floor remains level"), Solid->GetActorLocation().Z, Map->GetActorLocation().Z + 100.0);
+	TestTrue(TEXT("Original outer fall remains enabled"), Edge->GetActorLocation().Z < Map->GetActorLocation().Z + 100.0);
+	TestEqual(TEXT("Outer fall toggle retains original meaning"), EdgeDisabled->GetActorLocation().Z, Map->GetActorLocation().Z + 100.0);
+	return true;
+}
+
+/** @brief 通常試合のReadyとEndedでは穴上にいても新しい落下を開始しない。 */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMapWorkbenchAnimalHoleMatchPhase,
+	"AnimalGatherer.MapWorkbench.AnimalHoleMatchPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMapWorkbenchAnimalHoleMatchPhase::RunTest(const FString& Parameters)
+{
+	TUniquePtr<FScopedEditorWorld> ScopedWorld = MakeTestWorld();
+	FEditorScriptExecutionGuard ScriptGuard;
+	UWorld* World = ScopedWorld->GetWorld();
+	AMapManager* Map = MakeAnimalHoleMap(World);
+	AMainGameMode* Mode = SpawnTransactionalActor<AMainGameMode>(World);
+	FObjectPropertyBase* Authority = FindFProperty<FObjectPropertyBase>(UWorld::StaticClass(), TEXT("AuthorityGameMode"));
+	FProperty* PhaseProperty = FindFProperty<FProperty>(AMainGameMode::StaticClass(), TEXT("MatchPhase"));
+	if (!TestNotNull(TEXT("Map"), Map) || !TestNotNull(TEXT("Mode"), Mode) ||
+		!TestNotNull(TEXT("Authority property"), Authority) || !TestNotNull(TEXT("Phase property"), PhaseProperty)) { return false; }
+	UObject* PreviousAuthority = Authority->GetObjectPropertyValue_InContainer(World);
+	ON_SCOPE_EXIT { Authority->SetObjectPropertyValue_InContainer(World, PreviousAuthority); };
+	Authority->SetObjectPropertyValue_InContainer(World, Mode);
+	for (const EMatchPhase Phase : { EMatchPhase::Ready, EMatchPhase::Ended })
+	{
+		*PhaseProperty->ContainerPtrToValuePtr<EMatchPhase>(Mode) = Phase;
+		AAnimalBase* Animal = MakeHoleAnimal(Map, FVector(200, 200, 100), FVector(1, 0, 0));
+		if (!TestNotNull(TEXT("Phase animal"), Animal)) { return false; }
+		const FVector Before = Animal->GetActorLocation();
+		Animal->Tick(0.5f);
+		Animal->Tick(0.5f);
+		TestTrue(TEXT("Non-playing phase does not start falling"), Animal->GetActorLocation().Equals(Before));
+		TestEqual(TEXT("P1 score unchanged"), Mode->GetP1Score(), 0);
+		TestEqual(TEXT("P2 score unchanged"), Mode->GetP2Score(), 0);
+	}
 	return true;
 }
 // 2026.10.23 Lee end
