@@ -477,7 +477,11 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	// 特殊タイル（Spawn / GoalP1 / GoalP2）は上書き不可
 	if (CurrentTile == ETileType::Spawn ||
 		CurrentTile == ETileType::GoalP1 ||
-		CurrentTile == ETileType::GoalP2)
+		// 2026.10.23 Lee start
+		// CurrentTile == ETileType::GoalP2)
+		/** @brief 空洞への配置は履歴の更新前に拒否する。 */
+		CurrentTile == ETileType::GoalP2 || CurrentTile == ETileType::Hole)
+		// 2026.10.23 Lee end
 	{
 		// 2026.10.14 Lee start
 		PlayActionRejectSound();

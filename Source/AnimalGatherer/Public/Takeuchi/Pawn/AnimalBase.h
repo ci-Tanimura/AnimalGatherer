@@ -272,6 +272,17 @@ private:
 	//現在位置が盤面の外かどうかを返す
 	bool IsOutsideBoard() const;
 
+	// 2026.10.23 Lee start
+	/** @brief 現在位置が有効な穴セルの内部にあるかを返す。外周設定とは独立する。 */
+	bool IsInsideHole() const;
+
+	/** @brief 線分が最初に穴内部へ入る位置を求める。接線・角への接触だけでは検出しない。
+	 *  @param MoveDelta 実行予定の移動量。
+	 *  @param OutEntryAlpha 最初の入口の線分比率（0～1）。
+	 *  @return 穴内部を通る移動の場合 true。 */
+	bool FindHoleEntry(const FVector& MoveDelta, double& OutEntryAlpha) const;
+	// 2026.10.23 Lee end
+
 	//盤外へ出た動物の落下を開始する
 	void StartFalling();
 

@@ -128,7 +128,11 @@ void AAnimalBase::Tick(float DeltaTime)
 
 	// 2026.10.22 Tanimura start------------------------------------------------
 	// 開始時点で盤外にいる動物は移動せずその場で落下する
-	if (IsOutsideBoard()) {
+	// 2026.10.23 Lee start
+	// if (IsOutsideBoard()) {
+	/** @brief 移動開始時に穴の内部にいる場合も、既存の落下処理へ接続する。 */
+	if (IsOutsideBoard() || IsInsideHole()) {
+	// 2026.10.23 Lee end
 		StartFalling();
 		return;
 	}
@@ -478,8 +482,25 @@ bool AAnimalBase::SweepMoveBy(const FVector& Direction, float Distance, FHitResu
 	const FVector StartLocation = GetActorLocation();
 	const FVector MoveDelta = Direction * Distance;
 
-	// sweep を有効化し、実際に動けた距離と Hit を検証する
-	AddActorWorldOffset(MoveDelta, true, &OutHit);
+	// 2026.10.23 Lee start
+	// AddActorWorldOffset(MoveDelta, true, &OutHit);
+	/** @brief 穴の入口までを実際に sweep し、阻まれたときは落下を開始しない。 */
+	double HoleEntryAlpha = 1.0;
+	const bool bEntersHole = FindHoleEntry(MoveDelta, HoleEntryAlpha);
+	const FVector AllowedDelta = bEntersHole ? MoveDelta * HoleEntryAlpha : MoveDelta;
+	AddActorWorldOffset(AllowedDelta, true, &OutHit);
+	if (bEntersHole)
+	{
+		const FVector ExpectedLocation = StartLocation + AllowedDelta;
+		const bool bReachedEntry = GetActorLocation().Equals(ExpectedLocation, 0.0001);
+		if (!OutHit.bBlockingHit && bReachedEntry)
+		{
+			StartFalling();
+		}
+		/** @brief 落下開始・入口前の衝突のどちらでも、このフレームのセル読み取りを止める。 */
+		return false;
+	}
+	// 2026.10.23 Lee end
 
 	const float ActualDistance = FVector::Dist2D(GetActorLocation(), StartLocation);
 	const bool bBlockedByHit = OutHit.bBlockingHit && OutHit.Time < (1.0f - KINDA_SMALL_NUMBER);
@@ -1149,6 +1170,118 @@ bool AAnimalBase::IsOutsideBoard() const
 	const FIntPoint NearestGridCoords = WorldToNearestGrid(GetActorLocation());
 	return !IGridInteractInterface::Execute_IsValidCoord(MapActor, NearestGridCoords);
 }
+
+// 2026.10.23 Lee start
+/** @brief 現在位置が穴の内部にある場合のみ true。境界上は移動線分の進行方向で扱う。 */
+bool AAnimalBase::IsInsideHole() const
+{
+	if (!IsValid(MapActor) || !FMath::IsFinite(TileSize) || TileSize <= 0.f ||
+		!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass()))
+	{
+		return false;
+	}
+	const FVector Grid = (GetActorLocation() - GetMapOrigin()) / TileSize + FVector(0.5, 0.5, 0.0);
+	const FIntPoint Size = IGridInteractInterface::Execute_GetGridSize(MapActor);
+	if (Grid.ContainsNaN() || Grid.X <= 0.0 || Grid.Y <= 0.0 || Grid.X >= Size.X || Grid.Y >= Size.Y)
+	{
+		return false;
+	}
+	const FIntPoint Cell(FMath::FloorToInt(Grid.X), FMath::FloorToInt(Grid.Y));
+	if (Grid.X == static_cast<double>(Cell.X) || Grid.Y == static_cast<double>(Cell.Y))
+	{
+		return false;
+	}
+	return IGridInteractInterface::Execute_IsValidCoord(MapActor, Cell) &&
+		IGridInteractInterface::Execute_GetCellState(MapActor, Cell) == ETileType::Hole;
+}
+
+/** @brief マップ範囲へ線分をクリップしてからDDAで横切るセルだけを調べる。大きな移動でも穴を飛び越さない。 */
+bool AAnimalBase::FindHoleEntry(const FVector& MoveDelta, double& OutEntryAlpha) const
+{
+	OutEntryAlpha = 1.0;
+	if (!IsValid(MapActor) || !FMath::IsFinite(TileSize) || TileSize <= 0.f || MoveDelta.ContainsNaN() ||
+		!MapActor->GetClass()->ImplementsInterface(UGridInteractInterface::StaticClass()))
+	{
+		return false;
+	}
+	const FIntPoint Size = IGridInteractInterface::Execute_GetGridSize(MapActor);
+	const FVector Start = (GetActorLocation() - GetMapOrigin()) / TileSize + FVector(0.5, 0.5, 0.0);
+	const FVector Delta = MoveDelta / TileSize;
+	if (Size.X <= 0 || Size.Y <= 0 || Start.ContainsNaN() || (Delta.X == 0.0 && Delta.Y == 0.0))
+	{
+		return false;
+	}
+
+	double Entry = 0.0;
+	double Exit = 1.0;
+	for (int32 Axis = 0; Axis < 2; ++Axis)
+	{
+		const double Position = Start[Axis];
+		const double Movement = Delta[Axis];
+		const double Limit = Axis == 0 ? Size.X : Size.Y;
+		if (Movement == 0.0)
+		{
+			/** @brief 格子線上を平行に進む経路は穴の内部に入らない。 */
+			if (Position <= 0.0 || Position >= Limit || Position == FMath::FloorToDouble(Position))
+			{
+				return false;
+			}
+			continue;
+		}
+		const double Near = -Position / Movement;
+		const double Far = (Limit - Position) / Movement;
+		Entry = FMath::Max(Entry, FMath::Min(Near, Far));
+		Exit = FMath::Min(Exit, FMath::Max(Near, Far));
+		if (Entry >= Exit)
+		{
+			return false;
+		}
+	}
+
+	const int32 StepX = Delta.X > 0.0 ? 1 : (Delta.X < 0.0 ? -1 : 0);
+	const int32 StepY = Delta.Y > 0.0 ? 1 : (Delta.Y < 0.0 ? -1 : 0);
+	const FVector EntryPoint = Start + Delta * Entry;
+	FIntPoint Cell(FMath::FloorToInt(EntryPoint.X), FMath::FloorToInt(EntryPoint.Y));
+	if (StepX < 0 && EntryPoint.X == static_cast<double>(Cell.X))
+	{
+		--Cell.X;
+	}
+	if (StepY < 0 && EntryPoint.Y == static_cast<double>(Cell.Y))
+	{
+		--Cell.Y;
+	}
+	Cell.X = FMath::Clamp(Cell.X, 0, Size.X - 1);
+	Cell.Y = FMath::Clamp(Cell.Y, 0, Size.Y - 1);
+	while (Cell.X >= 0 && Cell.X < Size.X && Cell.Y >= 0 && Cell.Y < Size.Y && Entry < Exit)
+	{
+		/** @brief 動かない軸は線分終点より先として扱い、除算ゼロを避ける。 */
+		const double NextX = StepX == 0 ? 2.0 : ((Cell.X + (StepX > 0 ? 1 : 0)) - Start.X) / Delta.X;
+		const double NextY = StepY == 0 ? 2.0 : ((Cell.Y + (StepY > 0 ? 1 : 0)) - Start.Y) / Delta.Y;
+		const double CellExit = FMath::Min(Exit, FMath::Min(NextX, NextY));
+		if (CellExit > Entry && IGridInteractInterface::Execute_IsValidCoord(MapActor, Cell) &&
+			IGridInteractInterface::Execute_GetCellState(MapActor, Cell) == ETileType::Hole)
+		{
+			OutEntryAlpha = Entry;
+			return true;
+		}
+		if (CellExit >= Exit)
+		{
+			return false;
+		}
+		/** @brief 角を横切るときは両軸を同時に進め、触れただけの隣接セルを読まない。 */
+		if (NextX <= NextY)
+		{
+			Cell.X += StepX;
+		}
+		if (NextY <= NextX)
+		{
+			Cell.Y += StepY;
+		}
+		Entry = CellExit;
+	}
+	return false;
+}
+// 2026.10.23 Lee end
 
 //盤外へ出た動物の落下を開始する（開始時の速度は 0）
 void AAnimalBase::StartFalling()
