@@ -519,6 +519,31 @@ void AAnimalGatherPlayerController::PlaceDirection(ETileType Direction)
 	}
 	// 2026.10.02 Lee end
 
+	// 2026.10.24 Lee start（相手プレイヤー矢印への上書き制限：GameMode の共通スイッチが無効な普通対戦のみ適用する）
+	/** @brief 操作者のプレイヤーID（0 = 1P / 1 = 2P）。チュートリアル等の不明身分（255）は拒否対象にしないため、
+	 *         有効身分どうしの対戦でのみ本制限を判定する。 */
+	const uint8 OperatorId = static_cast<uint8>(CursorPawn->PlayerID);
+	const AMainGameMode* MainModeForOverwrite = Cast<AMainGameMode>(UGameplayStatics::GetGameMode(this));
+	if (MainModeForOverwrite && MainModeForOverwrite->IsNormalMatch() &&
+		!MainModeForOverwrite->bAllowOpponentArrowOverwrite &&
+		(OperatorId == 0 || OperatorId == 1))
+	{
+		/** @brief 対象が方向タイルかつ所有者が相手プレイヤー（0/1 の有効身分で操作者と異なる）場合のみ上書きを拒否する。
+		 *         空マスと自分の矢印は上書き可能、同方向の相手矢印も拒否対象。Spawn / Goal / Hole は矢印ではなく特殊地形であり、
+		 *         既存の特殊タイル規則で既に排除済み。履歴・FIFO には一切触れず、既存の拒否音のみを再生する。 */
+		const uint8 TileOwner = MapManagerRef->GetTileOwner(TargetCoords.X, TargetCoords.Y);
+		const bool bOpponentArrowTile = AMapManager::IsDirectionTile(CurrentTile) &&
+			(TileOwner == 0 || TileOwner == 1) && TileOwner != OperatorId;
+		if (bOpponentArrowTile)
+		{
+			PlayActionRejectSound();
+			UE_LOG(LogTemp, Display, TEXT("PlaceDirection: 相手プレイヤー (%u) の矢印 (%d, %d) は上書きできません"),
+				TileOwner, TargetCoords.X, TargetCoords.Y);
+			return;
+		}
+	}
+	// 2026.10.24 Lee end
+
 	// 2026.09.25 Lee start
 	const uint8 OwnerId = static_cast<uint8>(CursorPawn->PlayerID);
 
