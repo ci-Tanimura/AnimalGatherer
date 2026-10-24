@@ -158,6 +158,13 @@ public:
 	virtual bool IsSkillEffectContextActive() const;
 	// 2026.10.08 Lee end
 
+	// 2026.10.24 Lee start（相手矢印上書き許可スイッチ）
+	/** @brief 相手プレイヤーが置いた方向矢印への上書き配置を許可するか（双方共通・ブループリント既定値で設定・次回対局から反映）。
+	 *         true の場合は従来どおり上書き可能。false の場合は普通対戦中、相手所有の方向タイルへの配置を拒否する（チュートリアルには影響しない）。 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GameMode|Developer")
+	bool bAllowOpponentArrowOverwrite = true;
+	// 2026.10.24 Lee end
+
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "GameMode|Score")
 	int32 P1Score;
