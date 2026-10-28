@@ -297,7 +297,10 @@ protected:
 
 	/** @brief チュートリアル完了後の遷移先レベル名。None ならその場に留まる。 */
 	UPROPERTY(EditDefaultsOnly, Category = "Tutorial|Flow")
-	FName TutorialEndLevelName = TEXT("LV_MainGame");
+	// 2026.10.28 Lee start
+	// FName TutorialEndLevelName = TEXT("LV_MainGame");
+	FName TutorialEndLevelName = TEXT("LV_NewMap");
+	// 2026.10.28 Lee end
 
 	// 2026.10.08 Lee start（教程拡張：基線・復帰観察の待ち時間）
 	/** @brief SpeedBaseline / SpeedRecovered の観察時間（秒）。 */
